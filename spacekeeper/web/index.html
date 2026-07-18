@@ -32,6 +32,10 @@
         <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8Z" /><path d="M8 8V5h8v3M9 12v4m6-4v4" /></svg></span>
         <span>격리함</span>
       </button>
+      <button class="nav-item" data-view="diagnostics">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.2-5 3.5 10 2.2-5H21" /><circle cx="12" cy="12" r="9" /></svg></span>
+        <span>환경 진단</span>
+      </button>
     </nav>
     <div class="sidebar-foot safety-card">
       <span class="safety-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 7 3v5c0 4.6-2.9 8-7 10-4.1-2-7-5.4-7-10V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg></span>
@@ -223,6 +227,43 @@
         <span id="q-selection" class="tool-note">선택한 항목 없음</span>
       </div>
       <div id="quarantine-list" class="quarantine-list"></div>
+    </section>
+
+    <!-- 환경 진단 -->
+    <section id="view-diagnostics" class="view">
+      <header class="page-header compact">
+        <div>
+          <div class="eyebrow"><span></span> READINESS CHECK</div>
+          <h1>환경 진단</h1>
+          <p>현재 실행 중인 Spacekeeper가 보호 폴더를 읽고, 격리·복원 기능을 사용할 준비가 됐는지 확인합니다.</p>
+        </div>
+        <div class="spacer"></div>
+        <button id="diagnostics-refresh" class="btn ghost">다시 점검</button>
+      </header>
+
+      <div id="diagnostics-overview" class="diagnostics-overview loading">
+        <div class="diag-overview-icon" aria-hidden="true"><span></span></div>
+        <div>
+          <div class="diag-overview-kicker">현재 실행 환경</div>
+          <h2>권한과 앱 상태를 점검하고 있어요.</h2>
+          <p>임시 검사 파일은 즉시 정리합니다.</p>
+        </div>
+      </div>
+
+      <div id="diagnostics-groups" class="diagnostics-groups"></div>
+
+      <div class="diagnostics-help">
+        <div class="diagnostics-help-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v4m0 10v4M3 12h4m10 0h4M5.6 5.6l2.8 2.8m7.2 7.2 2.8 2.8m0-12.8-2.8 2.8m-7.2 7.2-2.8 2.8" /><circle cx="12" cy="12" r="4" /></svg></div>
+        <div class="diagnostics-help-copy">
+          <h2>보호 폴더가 차단되었나요?</h2>
+          <p><b>시스템 설정 → 개인정보 보호 및 보안 → 전체 디스크 접근 권한</b>에서 Spacekeeper를 허용한 뒤 앱을 다시 실행하세요.</p>
+          <p id="diagnostics-runtime-note" class="diagnostics-runtime-note"></p>
+        </div>
+        <button id="open-privacy-settings" class="btn primary">시스템 설정 열기</button>
+      </div>
+
+      <p class="diagnostics-footnote">※ 이 결과는 macOS의 전체 권한 목록을 추측하지 않고, 현재 프로세스에서 실제 읽기·임시 쓰기를 수행한 결과입니다.
+      </p>
     </section>
   </main>
 

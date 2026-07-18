@@ -202,6 +202,43 @@ class ServerSafetyTests(unittest.TestCase):
         self.assertIn("새로고침", payload["error"])
         run.assert_not_called()
 
+    def test_diagnostics_returns_current_environment_report(self) -> None:
+        report = {
+            "checked_at": "2026-07-18T00:00:00+00:00",
+            "overall_status": "ready",
+            "counts": {"ready": 8, "attention": 0, "blocked": 0},
+            "checks": [],
+            "runtime": {"mode": "development"},
+        }
+        with mock.patch.object(
+            server.diagnostics,
+            "diagnose_environment",
+            return_value=report,
+        ) as diagnose:
+            status, payload = self._get("/api/diagnostics")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, report)
+        diagnose.assert_called_once_with(server_host="127.0.0.1")
+
+    def test_open_system_settings_uses_bundle_id_without_shell(self) -> None:
+        with (
+            mock.patch.object(server.sys, "platform", "darwin"),
+            mock.patch.object(server.subprocess, "run") as run,
+        ):
+            status, payload = self._post({}, path="/api/open-system-settings")
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["opened"])
+        run.assert_called_once_with(
+            ["open", "-b", "com.apple.systempreferences"],
+            check=True,
+            stdout=server.subprocess.DEVNULL,
+            stderr=server.subprocess.PIPE,
+            text=True,
+            timeout=server._SETTINGS_TIMEOUT_SECONDS,
+        )
+
     def test_scan_payload_honors_excluded_paths(self) -> None:
         payload = server._scan_payload(
             {"paths": [str(self.root)], "exclude": [str(self.target)]}

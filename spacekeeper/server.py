@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from . import engine
+from . import diagnostics, engine
 from .apps import scan_apps
 from .models import ScanOptions
 from .planning import _action_id, build_cleanup_plan
@@ -30,6 +30,7 @@ STATIC_DIR = Path(__file__).parent / "web"
 _PLAN_LIMIT = 500
 _EMPTY_LIMIT = 10_000
 _REVEAL_TIMEOUT_SECONDS = 5
+_SETTINGS_TIMEOUT_SECONDS = 5
 
 
 class _ScanBusyError(RuntimeError):
@@ -429,6 +430,21 @@ def _reveal_in_finder(path: str) -> None:
     )
 
 
+def _open_system_settings() -> None:
+    """Open macOS System Settings without invoking a shell or URL handler."""
+
+    if sys.platform != "darwin":
+        raise RuntimeError("시스템 설정 열기는 macOS에서만 사용할 수 있습니다.")
+    subprocess.run(
+        ["open", "-b", "com.apple.systempreferences"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=_SETTINGS_TIMEOUT_SECONDS,
+    )
+
+
 def _quarantine_path_for_reveal(action_id: str, instance_token: str) -> str:
     records = engine.list_quarantine()
     record = next((item for item in records if item.action_id == action_id), None)
@@ -520,6 +536,12 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, status=500)
                 return
             self._send_json({"items": [r.to_dict() for r in items]})
+        elif route.path == "/api/diagnostics":
+            self._send_json(
+                diagnostics.diagnose_environment(
+                    server_host=str(self.server.server_address[0])
+                )
+            )
         else:
             self.send_error(404)
 
@@ -556,6 +578,19 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, status=404)
                 return
             self._send_json(payload, status=202)
+        elif route.path == "/api/open-system-settings":
+            try:
+                _open_system_settings()
+            except RuntimeError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            except (OSError, subprocess.SubprocessError) as exc:
+                self._send_json(
+                    {"error": f"시스템 설정을 여는 중 오류가 발생했습니다: {exc}"},
+                    status=500,
+                )
+                return
+            self._send_json({"opened": True})
         elif route.path == "/api/reveal":
             action_id = body.get("action_id")
             scope = body.get("scope")

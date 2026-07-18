@@ -17,6 +17,16 @@ const CATEGORY_META = {
   installer_or_archive: { icon: "🧰", label: "설치·압축 파일" },
 };
 const RISK_LABEL = { low: "낮은 위험", medium: "확인 필요", high: "높은 주의" };
+const DIAGNOSTIC_STATUS = {
+  ready: { label: "준비됨" },
+  attention: { label: "확인 필요" },
+  blocked: { label: "조치 필요" },
+};
+const DIAGNOSTIC_GROUPS = [
+  ["protected", "보호 폴더 접근", "macOS가 관리하는 주요 사용자 폴더"],
+  ["safety", "안전한 이동 경로", "격리와 휴지통 이동에 필요한 쓰기 권한"],
+  ["environment", "앱 실행 환경", "런타임·Finder·로컬 서버 상태"],
+];
 
 let lastScan = null;
 let lastApps = null;
@@ -374,11 +384,20 @@ function renderResults(data) {
   const excludedMeta = data.skipped?.excluded_paths
     ? `<span class="sep">·</span><span>제외 경로 ${data.skipped.excluded_paths}건</span>`
     : "";
-  document.getElementById("hero-meta").innerHTML =
+  const permissionMeta = data.skipped?.permission_denied
+    ? `<span class="sep">·</span><button class="meta-link" type="button" data-open-diagnostics>` +
+      `권한 제한 ${data.skipped.permission_denied}건 확인</button>`
+    : "";
+  const heroMeta = document.getElementById("hero-meta");
+  heroMeta.innerHTML =
     ["low", "medium", "high"].map((r) =>
       `<span><span class="dot ${r}"></span>${RISK_LABEL[r]} ${fmtBytes(risk[r])}</span>`).join("") +
     `<span class="sep">·</span><span>파일 ${data.scanned_files.toLocaleString()}개 · ${data.duration.toFixed(1)}초</span>` +
-    excludedMeta;
+    excludedMeta + permissionMeta;
+  heroMeta.querySelector("[data-open-diagnostics]")?.addEventListener(
+    "click",
+    () => switchView("diagnostics"),
+  );
 
   renderFilteredResults();
 }
@@ -821,6 +840,120 @@ async function emptyQuarantine() {
   }
 }
 
+/* ---------- environment diagnostics ---------- */
+function diagnosticCard(check) {
+  const status = DIAGNOSTIC_STATUS[check.status] || DIAGNOSTIC_STATUS.attention;
+  const path = check.path
+    ? `<div class="diag-path" title="${escapeHtml(check.path)}">${escapeHtml(check.path)}</div>`
+    : "";
+  return `
+    <article class="diag-card ${escapeHtml(check.status)}">
+      <div class="diag-card-title">
+        <i aria-hidden="true"></i>
+        <b>${escapeHtml(check.label)}</b>
+        <span class="diag-status">${status.label}</span>
+      </div>
+      <p class="diag-detail">${escapeHtml(check.detail)}</p>
+      ${path}
+    </article>`;
+}
+
+function renderDiagnostics(data) {
+  const overview = document.getElementById("diagnostics-overview");
+  const overviewCopy = {
+    ready: ["현재 실행 환경이 준비됐어요.", "주요 폴더와 안전 기능을 사용할 수 있습니다."],
+    attention: ["확인할 항목이 있어요.", "폴더 생성 여부나 실행 환경 안내를 확인해주세요."],
+    blocked: ["권한 또는 환경 조치가 필요해요.", "조치 필요 항목을 확인한 뒤 다시 점검해주세요."],
+  }[data.overall_status];
+  const checkedAt = new Date(data.checked_at).toLocaleString("ko-KR", {
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  overview.className = `diagnostics-overview ${data.overall_status}`;
+  overview.innerHTML = `
+    <div class="diag-overview-icon" aria-hidden="true"></div>
+    <div>
+      <div class="diag-overview-kicker">현재 실행 환경 · ${escapeHtml(checkedAt)} 점검</div>
+      <h2>${overviewCopy[0]}</h2>
+      <p>${overviewCopy[1]}</p>
+      <div class="diag-counts">
+        <span class="diag-count ready"><i></i>준비됨 ${data.counts.ready}개</span>
+        <span class="diag-count attention"><i></i>확인 ${data.counts.attention}개</span>
+        <span class="diag-count blocked"><i></i>조치 ${data.counts.blocked}개</span>
+      </div>
+    </div>`;
+
+  document.getElementById("diagnostics-groups").innerHTML =
+    DIAGNOSTIC_GROUPS.map(([groupId, title, description]) => {
+      const checks = data.checks.filter((check) => check.group === groupId);
+      return `
+        <section class="diag-section">
+          <div class="diag-section-head">
+            <h2>${title}</h2>
+            <p>${description}</p>
+          </div>
+          <div class="diag-grid">${checks.map(diagnosticCard).join("")}</div>
+        </section>`;
+    }).join("");
+
+  document.getElementById("diagnostics-runtime-note").textContent =
+    data.runtime.mode === "staged"
+      ? "현재 데스크톱 앱용 런타임을 점검한 결과입니다."
+      : "개발 서버에서는 터미널·Python 권한이 반영될 수 있어 데스크톱 앱 결과와 다를 수 있습니다.";
+}
+
+async function loadDiagnostics() {
+  const refresh = document.getElementById("diagnostics-refresh");
+  refresh.disabled = true;
+  refresh.textContent = "점검하는 중…";
+  const overview = document.getElementById("diagnostics-overview");
+  overview.className = "diagnostics-overview loading";
+  overview.innerHTML = `
+    <div class="diag-overview-icon" aria-hidden="true"></div>
+    <div>
+      <div class="diag-overview-kicker">현재 실행 환경</div>
+      <h2>권한과 앱 상태를 점검하고 있어요.</h2>
+      <p>임시 검사 파일은 즉시 정리합니다.</p>
+    </div>`;
+  document.getElementById("diagnostics-groups").innerHTML =
+    `<div class="diag-loading">보호 폴더와 안전 기능을 하나씩 확인하고 있어요.</div>`;
+  try {
+    renderDiagnostics(await api("/api/diagnostics"));
+  } catch (e) {
+    overview.className = "diagnostics-overview blocked";
+    overview.innerHTML = `
+      <div class="diag-overview-icon" aria-hidden="true"></div>
+      <div><div class="diag-overview-kicker">점검 실패</div>
+      <h2>환경 상태를 불러오지 못했어요.</h2>
+      <p>${escapeHtml(e.message)}</p></div>`;
+    document.getElementById("diagnostics-groups").innerHTML = "";
+  } finally {
+    refresh.disabled = false;
+    refresh.textContent = "다시 점검";
+  }
+}
+
+async function openSystemSettings() {
+  const button = document.getElementById("open-privacy-settings");
+  button.disabled = true;
+  button.textContent = "여는 중…";
+  try {
+    await api("/api/open-system-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    toast("시스템 설정을 열었습니다. 개인정보 보호 및 보안을 확인하세요.", "ok");
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    button.disabled = false;
+    button.textContent = "시스템 설정 열기";
+  }
+}
+
 /* ---------- wiring ---------- */
 function switchView(view) {
   document.querySelectorAll(".nav-item").forEach((b) => {
@@ -833,6 +966,7 @@ function switchView(view) {
   if (view === "quarantine") loadQuarantine();
   if (view === "duplicates") renderDuplicates();
   if (view === "apps" && !lastApps) loadApps();
+  if (view === "diagnostics") loadDiagnostics();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -882,6 +1016,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     renderQuarantine();
   });
+  document.getElementById("diagnostics-refresh").addEventListener("click", loadDiagnostics);
+  document.getElementById("open-privacy-settings").addEventListener("click", openSystemSettings);
   document.querySelectorAll(".nav-item").forEach((b) =>
     b.addEventListener("click", () => switchView(b.dataset.view)));
 });
