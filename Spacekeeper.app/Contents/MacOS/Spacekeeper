@@ -1,0 +1,46 @@
+#!/bin/bash
+# Spacekeeper 런처: 로컬 서버를 켜고 대시보드를 브라우저로 엽니다.
+# 서버가 앱과 함께 살아 있도록 foreground로 실행하며, 앱을 종료하면 서버도 멈춥니다.
+
+set -u
+PORT=8765
+URL="http://127.0.0.1:${PORT}"
+
+# 이 .app이 놓인 폴더를 저장소 루트로 추정하고, 아니면 알려진 경로로 대체한다.
+APP_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+REPO="$APP_ROOT"
+if [ ! -d "$REPO/spacekeeper" ]; then
+    REPO="/Users/yuntaeung/Desktop/코딩/spacekeeper"
+fi
+
+PY="$(command -v python3 || echo /usr/bin/python3)"
+cd "$REPO" || exit 1
+
+is_up() { curl -s -o /dev/null "$URL/api/quarantine" 2>/dev/null; }
+
+# 가능하면 Chrome 앱 모드(크롬리스 창)로, 아니면 기본 브라우저로 연다.
+open_dashboard() {
+    if [ -d "/Applications/Google Chrome.app" ]; then
+        open -na "Google Chrome" --args --app="$URL" --window-size=1240,880
+    else
+        open "$URL"
+    fi
+}
+
+# 이미 실행 중이면 창만 연다.
+if is_up; then
+    open_dashboard
+    exit 0
+fi
+
+# 서버가 뜨면 창을 연다.
+(
+    for _ in $(seq 1 60); do
+        is_up && break
+        sleep 0.25
+    done
+    open_dashboard
+) &
+
+# 서버를 foreground로 실행 (앱 종료 시 함께 종료).
+exec "$PY" -m spacekeeper --serve --port "$PORT"

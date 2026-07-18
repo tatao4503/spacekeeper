@@ -79,12 +79,30 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="사람용 보고서 대신 JSON을 출력합니다.",
     )
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="터미널 대신 로컬 웹 대시보드를 실행합니다.",
+    )
+    parser.add_argument(
+        "--port",
+        type=_positive_int,
+        default=8765,
+        help="대시보드 포트(기본 8765, --serve에서 사용)",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.serve:
+        from .server import serve
+
+        serve(port=args.port)
+        return 0
+
     roots = tuple(args.paths) if args.paths else (Path.home() / "Downloads",)
     scan_result_limit = max(args.top, 100_000) if args.plan else args.top
     options = ScanOptions(

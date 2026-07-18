@@ -3,6 +3,16 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
-dist/
 build/
-*.json
+
+# 스캔 결과물(리포트) — 소스가 아닌 출력만 무시
+/report.json
+/cleanup-plan.json
+
+# 파이썬 패키징
+/dist/
+
+# 데스크탑 앱 (Tauri)
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/

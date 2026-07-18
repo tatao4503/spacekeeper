@@ -17,3 +17,6 @@ spacekeeper = "spacekeeper.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["spacekeeper*"]
+
+[tool.setuptools.package-data]
+spacekeeper = ["web/*"]

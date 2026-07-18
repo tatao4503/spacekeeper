@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spacekeeper</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span class="brand-name">Spacekeeper</span>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="dashboard"><span class="nav-ico">◍</span> 대시보드</button>
+      <button class="nav-item" data-view="duplicates"><span class="nav-ico">⧉</span> 중복 파일</button>
+      <button class="nav-item" data-view="apps"><span class="nav-ico">▦</span> 응용 프로그램</button>
+      <button class="nav-item" data-view="quarantine"><span class="nav-ico">↩</span> 격리함</button>
+    </nav>
+    <div class="sidebar-foot">
+      파일을 삭제하지 않고 격리함으로 옮겨요.<br />모든 작업은 되돌릴 수 있어요.
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- 대시보드 -->
+    <section id="view-dashboard" class="view active">
+      <header class="topbar">
+        <input id="path-input" type="text" placeholder="폴더 경로 (예: ~/Desktop)" />
+        <select id="preset">
+          <option value="downloads">다운로드</option>
+          <option value="home" selected>홈 전체</option>
+          <option value="desktop">데스크탑</option>
+          <option value="custom">직접 입력</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="opt-duplicates" /> 중복 검사</label>
+        <button id="scan-btn" class="btn primary">스캔</button>
+      </header>
+
+      <div id="empty-state" class="empty-state">
+        <div class="empty-icon">◍</div>
+        <h2>저장 공간을 살펴보세요</h2>
+        <p>선택한 폴더를 훑어 정리할 수 있는 항목을 찾아드려요. 파일은 삭제되지 않고 격리함으로 옮겨져, 언제든 되돌릴 수 있어요.</p>
+        <button id="scan-btn-2" class="btn primary big">스캔 시작</button>
+      </div>
+
+      <div id="scanning" class="scanning" hidden>
+        <div class="spinner"></div>
+        <p id="scanning-text">살펴보는 중…</p>
+      </div>
+
+      <div id="results" class="results" hidden>
+        <div class="hero">
+          <div class="donut-wrap">
+            <svg viewBox="0 0 120 120" class="donut">
+              <circle class="donut-track" cx="60" cy="60" r="52" />
+              <circle id="donut-used" class="donut-used" cx="60" cy="60" r="52" />
+            </svg>
+            <div class="donut-center">
+              <span id="donut-free" class="donut-free">–</span>
+              <span class="donut-label">사용 가능</span>
+            </div>
+          </div>
+          <div class="hero-stats">
+            <div class="hero-eyebrow">정리 가능</div>
+            <div id="reclaimable-total" class="hero-number">–</div>
+            <div class="risk-bars" id="risk-bars"></div>
+            <div class="hero-meta" id="hero-meta"></div>
+          </div>
+        </div>
+
+        <div class="actions-bar" id="actions-bar" hidden>
+          <span id="selection-summary">선택한 항목 없음</span>
+          <div class="spacer"></div>
+          <button id="clear-sel" class="btn ghost">선택 해제</button>
+          <button id="reclaim-btn" class="btn primary">격리함으로 이동</button>
+        </div>
+
+        <div id="category-list" class="category-list"></div>
+      </div>
+    </section>
+
+    <!-- 중복 파일 -->
+    <section id="view-duplicates" class="view">
+      <header class="topbar">
+        <h1 class="view-title">중복 파일</h1>
+        <div class="spacer"></div>
+        <span id="dup-summary" class="topbar-note"></span>
+      </header>
+      <div id="dup-actions" class="actions-bar" hidden>
+        <span id="dup-selection">선택한 항목 없음</span>
+        <div class="spacer"></div>
+        <button id="dup-reclaim" class="btn primary">격리함으로 이동</button>
+      </div>
+      <div id="dup-list" class="dup-list"></div>
+    </section>
+
+    <!-- 응용 프로그램 -->
+    <section id="view-apps" class="view">
+      <header class="topbar">
+        <h1 class="view-title">응용 프로그램</h1>
+        <div class="spacer"></div>
+        <button id="apps-scan" class="btn ghost">다시 살펴보기</button>
+      </header>
+      <p class="section-note">앱과 함께, 그 앱이 <b>보관함</b>에 남긴 지원·캐시·설정 파일을 묶어서 보여줘요. 이동하면 앱과 잔여 파일이 함께 격리됩니다.</p>
+      <div id="apps-actions" class="actions-bar" hidden>
+        <span id="apps-selection">선택한 항목 없음</span>
+        <div class="spacer"></div>
+        <button id="apps-reclaim" class="btn primary">격리함으로 이동</button>
+      </div>
+      <div id="apps-list" class="apps-list"></div>
+    </section>
+
+    <!-- 격리함 -->
+    <section id="view-quarantine" class="view">
+      <header class="topbar">
+        <h1 class="view-title">격리함</h1>
+        <div class="spacer"></div>
+        <button id="refresh-q" class="btn ghost">새로고침</button>
+        <button id="empty-q" class="btn danger">휴지통으로 비우기</button>
+      </header>
+      <p class="section-note">격리된 항목은 원래 자리로 <b>되돌리거나</b> 휴지통으로 <b>비울</b> 수 있어요. 비우기도 macOS 휴지통을 거치므로 Finder에서 복구할 수 있습니다.</p>
+      <div id="quarantine-list" class="quarantine-list"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

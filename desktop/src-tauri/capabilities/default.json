@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Spacekeeper 기본 권한",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
