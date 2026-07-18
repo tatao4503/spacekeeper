@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .models import ScanOptions
+from .planning import VALID_RISKS, build_cleanup_plan, render_cleanup_plan
 from .report import render_text
 from .scanner import scan
 
@@ -63,6 +64,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="iCloud Drive와 CloudStorage 루트도 포함합니다. 기본값은 제외입니다.",
     )
     parser.add_argument(
+        "--plan",
+        action="store_true",
+        help="스캔 보고서 대신 ID가 붙은 읽기 전용 정리 미리보기를 만듭니다.",
+    )
+    parser.add_argument(
+        "--risk",
+        choices=[*VALID_RISKS, "all"],
+        default="low",
+        help="미리보기에 포함할 위험도(기본 low, --plan에서 사용)",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="사람용 보고서 대신 JSON을 출력합니다.",
@@ -74,11 +86,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     roots = tuple(args.paths) if args.paths else (Path.home() / "Downloads",)
+    scan_result_limit = max(args.top, 100_000) if args.plan else args.top
     options = ScanOptions(
         roots=roots,
         large_bytes=args.large_mb * 1024 * 1024,
         old_days=args.old_days,
-        top=args.top,
+        top=scan_result_limit,
         find_duplicates=args.duplicates,
         duplicate_min_bytes=args.duplicate_min_mb * 1024 * 1024,
         include_cloud_storage=args.include_cloud,
@@ -88,9 +101,18 @@ def main(argv: list[str] | None = None) -> int:
     except (FileNotFoundError, NotADirectoryError, PermissionError) as exc:
         parser.exit(2, f"spacekeeper: {exc}\n")
 
+    if args.plan:
+        risks = set(VALID_RISKS) if args.risk == "all" else {args.risk}
+        plan = build_cleanup_plan(result, risks=risks, limit=args.top)
+        payload = plan.to_dict()
+        rendered = render_cleanup_plan(plan)
+    else:
+        payload = result.to_dict()
+        rendered = render_text(result)
+
     if args.json:
-        json.dump(result.to_dict(), sys.stdout, ensure_ascii=False, indent=2)
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
         sys.stdout.write("\n")
     else:
-        print(render_text(result))
+        print(rendered)
     return 0
