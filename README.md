@@ -9,6 +9,7 @@ Spacekeeper는 맥북 저장공간을 **삭제하지 않고 먼저 설명하는*
 - `node_modules`, `.next`, Xcode `DerivedData`, 일반 앱 캐시 등 재생성 가능한 후보 묶기
 - 선택적으로 SHA-256 기반 완전 동일 파일 찾기
 - 사람이 읽는 한국어 보고서 또는 JSON 보고서 출력
+- 사용자 지정 경로 제외, Spacekeeper 격리함과 macOS 휴지통 자동 제외
 - 심볼릭 링크를 따라가지 않고, 권한이 없는 폴더는 건너뛰기
 - 희소 파일과 클라우드 자리표시자로 부풀지 않도록 실제 할당 블록 기준 계산
 - 경로 기반 고정 ID가 붙은 위험도별 정리 미리보기
@@ -59,15 +60,16 @@ python3 -m spacekeeper --serve --port 9000
 
 화면은 네 가지입니다.
 
-- **대시보드** — 디스크 사용량 도넛과 정리 가능한 용량, 카테고리별 후보. 안전(재생성 가능) 항목만 기본 선택됩니다.
+- **대시보드** — 디스크 사용량 도넛과 정리 가능한 용량, 카테고리별 후보. 경로·이유 검색, 위험도 필터, JSON 내보내기를 지원합니다. 항목은 자동 선택하지 않으며 이동 전에 확인을 요청합니다.
 - **중복 파일** — `중복 검사`를 켜고 스캔하면 완전히 같은 파일을 그룹으로 묶어 보여줍니다. 그룹마다 하나는 기본 보관합니다.
 - **응용 프로그램** — 앱과, 그 앱이 `~/Library`에 남긴 지원·캐시·설정 파일을 묶어서 보여줍니다.
-- **격리함** — 이동한 항목을 원래 자리로 **되돌리거나** macOS 휴지통으로 **비웁니다**.
+- **격리함** — 보관 용량과 격리 시각을 확인하고, 필요한 항목만 선택해 원래 자리로 **되돌리거나** macOS 휴지통으로 **비웁니다**.
 
 "격리"는 파일을 삭제하지 않고 `~/.spacekeeper/quarantine/`로 **이동**하며, manifest에
 원래 위치를 기록해 언제든 복구할 수 있습니다. 같은 디스크 안으로 옮기므로 이 단계에서는
 실제 여유 공간이 늘지 않습니다. 격리함을 macOS 휴지통으로 비운 뒤 Finder에서 휴지통을 비워야
-저장공간이 확보됩니다. 이동 대상은 홈 폴더와 `/Applications`
+저장공간이 확보됩니다. 이동 전에 원자적 journal을 기록하며, 이동과 manifest
+기록 사이에 종료되어도 다음 실행에서 자동으로 회복합니다. 이동 대상은 홈 폴더와 `/Applications`
 안으로 제한하고, 시스템·보호 경로(`/System`, `/Library`, `~/.ssh`, Keychains 등)는
 절대 건드리지 않습니다.
 
@@ -86,6 +88,7 @@ python3 -m spacekeeper
 python3 -m spacekeeper ~/Desktop ~/Documents
 python3 -m spacekeeper ~ --large-mb 1000 --old-days 365
 python3 -m spacekeeper ~/Downloads --duplicates
+python3 -m spacekeeper ~ --exclude ~/Movies --exclude ~/Documents/archive
 python3 -m spacekeeper ~/Downloads --json > report.json
 python3 -m spacekeeper ~ --include-cloud
 python3 -m spacekeeper ~ --plan --risk low --top 20
@@ -95,6 +98,8 @@ python3 -m spacekeeper ~ --plan --risk all --json > cleanup-plan.json
 `--duplicates`는 파일 내용을 읽어 해시를 계산하므로 큰 폴더에서는 오래 걸릴 수 있습니다. 그래도 파일을 수정하거나 외부로 전송하지는 않습니다.
 
 홈 폴더 전체를 스캔할 때는 오프라인 파일 다운로드와 공급자 지연을 피하도록 iCloud Drive와 `~/Library/CloudStorage`를 기본 제외합니다. 경로를 직접 지정하거나 `--include-cloud`를 쓸 때만 포함합니다.
+
+`--exclude PATH`는 지정한 파일이나 폴더 하위를 스캔하지 않습니다. 여러 번 사용할 수 있으며, `~/.spacekeeper`, `~/.Trash`, 외장 볼륨의 `.Trashes`는 안전을 위해 항상 자동 제외됩니다.
 
 `--plan`은 기본적으로 `low` 위험도만 보여주며, 후보에 다음 스캔에서도 같은 고정 ID를 붙입니다. 이 단계는 선택·이동·삭제를 수행하지 않습니다.
 

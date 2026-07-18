@@ -74,6 +74,26 @@ class CleanupPlanningTests(unittest.TestCase):
             self.assertEqual(before.st_ino, after.st_ino)
             self.assertEqual(before.st_mtime_ns, after.st_mtime_ns)
 
+    def test_cli_exclude_omits_subtree_from_json_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            excluded = root / "archive"
+            excluded.mkdir()
+            (excluded / "ignored.bin").write_bytes(b"ignored")
+            (root / "kept.bin").write_bytes(b"kept")
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(
+                    [str(root), "--exclude", str(excluded), "--json"]
+                )
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["scanned_files"], 1)
+            self.assertEqual(payload["skipped_excluded_paths"], 1)
+            self.assertIn(str(excluded.resolve()), payload["excluded_paths"])
+
 
 if __name__ == "__main__":
     unittest.main()

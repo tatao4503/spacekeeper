@@ -64,6 +64,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="iCloud Drive와 CloudStorage 루트도 포함합니다. 기본값은 제외입니다.",
     )
     parser.add_argument(
+        "--exclude",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="PATH",
+        help="스캔에서 제외할 파일·폴더(여러 번 사용 가능)",
+    )
+    parser.add_argument(
         "--plan",
         action="store_true",
         help="스캔 보고서 대신 ID가 붙은 읽기 전용 정리 미리보기를 만듭니다.",
@@ -113,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         find_duplicates=args.duplicates,
         duplicate_min_bytes=args.duplicate_min_mb * 1024 * 1024,
         include_cloud_storage=args.include_cloud,
+        excluded_paths=tuple(args.exclude),
     )
     try:
         result = scan(options)

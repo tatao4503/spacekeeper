@@ -14,6 +14,7 @@ class ScanOptions:
     find_duplicates: bool = False
     duplicate_min_bytes: int = 10 * 1024 * 1024
     include_cloud_storage: bool = False
+    excluded_paths: tuple[Path, ...] = ()
     now: float | None = None
 
 
@@ -62,6 +63,7 @@ class ScanResult:
     volume_free_bytes: int
     skipped_symlinks: int
     skipped_cloud_dirs: int
+    skipped_excluded_paths: int
     permission_denied: int
     file_candidate_count: int
     cache_candidate_count: int
@@ -69,6 +71,7 @@ class ScanResult:
     review_candidate_bytes: int
     candidate_bytes_by_risk: dict[str, int]
     duplicate_reclaimable_bytes: int
+    excluded_paths: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     file_candidates: list[FileCandidate] = field(default_factory=list)
     cache_candidates: list[CacheCandidate] = field(default_factory=list)

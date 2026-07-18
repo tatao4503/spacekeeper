@@ -55,12 +55,16 @@ def render_text(result: ScanResult) -> str:
         result.permission_denied
         or result.skipped_symlinks
         or result.skipped_cloud_dirs
+        or result.skipped_excluded_paths
     ):
         lines.append(
             f"건너뜀: 권한 제한 {result.permission_denied}건 / "
             f"심볼릭 링크 {result.skipped_symlinks}건 / "
-            f"클라우드 루트 {result.skipped_cloud_dirs}건"
+            f"클라우드 루트 {result.skipped_cloud_dirs}건 / "
+            f"제외 경로 {result.skipped_excluded_paths}건"
         )
+    if result.excluded_paths:
+        lines.append(f"제외 설정: {', '.join(result.excluded_paths)}")
 
     hidden_cache_count = result.cache_candidate_count - len(result.cache_candidates)
     cache_heading = "1. 재생성 가능한 폴더 후보"

@@ -33,6 +33,11 @@ ARCHIVE_SUFFIXES = {
 }
 
 IGNORED_METADATA_NAMES = {".DS_Store", ".localized"}
+DEFAULT_EXCLUDED_ROOTS = (
+    Path.home() / ".spacekeeper",
+    Path.home() / ".Trash",
+)
+AUTOMATIC_EXCLUDED_DIR_NAMES = {".Trashes"}
 
 
 @dataclass(frozen=True)
@@ -269,6 +274,44 @@ def _normalize_roots(roots: tuple[Path, ...]) -> list[Path]:
     return resolved
 
 
+def _normalize_excluded_paths(
+    paths: tuple[Path, ...], roots: list[Path]
+) -> list[Path]:
+    resolved: list[Path] = []
+    for raw_path in (*DEFAULT_EXCLUDED_ROOTS, *paths):
+        path = raw_path.expanduser().resolve(strict=False)
+        if any(
+            path == existing or path.is_relative_to(existing)
+            for existing in resolved
+        ):
+            continue
+        resolved = [
+            existing for existing in resolved if not existing.is_relative_to(path)
+        ]
+        resolved.append(path)
+    return [
+        path
+        for path in resolved
+        if any(
+            path == root
+            or path.is_relative_to(root)
+            or root.is_relative_to(path)
+            for root in roots
+        )
+    ]
+
+
+def _is_excluded(path: Path, excluded_paths: list[Path]) -> bool:
+    return any(
+        path == excluded or path.is_relative_to(excluded)
+        for excluded in excluded_paths
+    )
+
+
+def _is_automatic_excluded_directory(path: Path) -> bool:
+    return any(part in AUTOMATIC_EXCLUDED_DIR_NAMES for part in path.parts)
+
+
 def _hash_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -323,12 +366,14 @@ def scan(options: ScanOptions) -> ScanResult:
     started_at = time.time()
     now = options.now if options.now is not None else started_at
     roots = _normalize_roots(options.roots)
+    excluded_paths = _normalize_excluded_paths(options.excluded_paths, roots)
     volume_usage = shutil.disk_usage(roots[0])
     scanned_files = 0
     scanned_bytes = 0
     scanned_logical_bytes = 0
     skipped_symlinks = 0
     skipped_cloud_dirs = 0
+    skipped_excluded_paths = 0
     permission_denied = 0
     errors: list[str] = []
     file_candidates: list[FileCandidate] = []
@@ -338,6 +383,12 @@ def scan(options: ScanOptions) -> ScanResult:
     stack = list(reversed(roots))
     while stack:
         directory = stack.pop()
+        if (
+            _is_excluded(directory, excluded_paths)
+            or _is_automatic_excluded_directory(directory)
+        ):
+            skipped_excluded_paths += 1
+            continue
         try:
             with os.scandir(directory) as entries:
                 for entry in entries:
@@ -346,7 +397,13 @@ def scan(options: ScanOptions) -> ScanResult:
                         if entry.is_symlink():
                             skipped_symlinks += 1
                             continue
+                        if _is_excluded(path, excluded_paths):
+                            skipped_excluded_paths += 1
+                            continue
                         if entry.is_dir(follow_symlinks=False):
+                            if _is_automatic_excluded_directory(path):
+                                skipped_excluded_paths += 1
+                                continue
                             if (
                                 not options.include_cloud_storage
                                 and _is_cloud_container(path)
@@ -447,6 +504,7 @@ def scan(options: ScanOptions) -> ScanResult:
         volume_free_bytes=volume_usage.free,
         skipped_symlinks=skipped_symlinks,
         skipped_cloud_dirs=skipped_cloud_dirs,
+        skipped_excluded_paths=skipped_excluded_paths,
         permission_denied=permission_denied,
         file_candidate_count=len(file_candidates),
         cache_candidate_count=len(cache_candidates),
@@ -454,6 +512,7 @@ def scan(options: ScanOptions) -> ScanResult:
         review_candidate_bytes=review_candidate_bytes,
         candidate_bytes_by_risk=candidate_bytes_by_risk,
         duplicate_reclaimable_bytes=duplicate_reclaimable_bytes,
+        excluded_paths=[str(path) for path in excluded_paths],
         errors=errors,
         file_candidates=file_candidates[: options.top],
         cache_candidates=cache_candidates[: options.top],

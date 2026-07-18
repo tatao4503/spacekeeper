@@ -7,7 +7,9 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
+from spacekeeper import scanner
 from spacekeeper.models import ScanOptions
 from spacekeeper.report import format_bytes, render_text
 from spacekeeper.scanner import _allocated_size, scan
@@ -147,6 +149,53 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(home_result.scanned_files, 0)
             self.assertEqual(home_result.skipped_cloud_dirs, 1)
             self.assertEqual(explicit_result.scanned_files, 1)
+
+    def test_skips_default_and_custom_excluded_subtrees(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            internal = root / ".spacekeeper"
+            custom = root / "large-project"
+            volume_trash = root / ".Trashes"
+            sibling = root / "keep"
+            for directory in (internal, custom, volume_trash, sibling):
+                directory.mkdir()
+                (directory / "data.bin").write_bytes(b"same-content")
+
+            with mock.patch.object(
+                scanner, "DEFAULT_EXCLUDED_ROOTS", (internal,)
+            ):
+                result = scan(
+                    ScanOptions(
+                        roots=(root,),
+                        large_bytes=1,
+                        find_duplicates=True,
+                        duplicate_min_bytes=1,
+                        excluded_paths=(custom,),
+                    )
+                )
+
+            self.assertEqual(result.scanned_files, 1)
+            self.assertEqual(result.skipped_excluded_paths, 3)
+            self.assertEqual(result.duplicate_group_count, 0)
+            self.assertEqual(
+                [candidate.path for candidate in result.file_candidates],
+                [str((sibling / "data.bin").resolve())],
+            )
+            self.assertEqual(
+                set(result.excluded_paths),
+                {str(internal.resolve()), str(custom.resolve())},
+            )
+
+    def test_skips_direct_scan_of_external_trash_descendant(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trash_user_dir = Path(temp_dir) / ".Trashes" / "501"
+            trash_user_dir.mkdir(parents=True)
+            (trash_user_dir / "discarded.bin").write_bytes(b"discarded")
+
+            result = scan(ScanOptions(roots=(trash_user_dir,)))
+
+            self.assertEqual(result.scanned_files, 0)
+            self.assertEqual(result.skipped_excluded_paths, 1)
 
     def test_rust_target_is_grouped_as_build_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

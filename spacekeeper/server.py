@@ -22,6 +22,7 @@ from .scanner import scan
 
 STATIC_DIR = Path(__file__).parent / "web"
 _PLAN_LIMIT = 500
+_EMPTY_LIMIT = 10_000
 
 
 class _State:
@@ -63,6 +64,9 @@ def _scan_payload(params: dict[str, list[str]]) -> dict:
     old_days = int(params.get("old_days", ["180"])[0])
     duplicates = params.get("duplicates", ["0"])[0] in ("1", "true", "on")
     include_cloud = params.get("include_cloud", ["0"])[0] in ("1", "true", "on")
+    excluded_paths = tuple(
+        Path(path) for path in params.get("exclude", []) if path.strip()
+    )
 
     options = ScanOptions(
         roots=roots,
@@ -71,6 +75,7 @@ def _scan_payload(params: dict[str, list[str]]) -> dict:
         top=_PLAN_LIMIT,
         find_duplicates=duplicates,
         include_cloud_storage=include_cloud,
+        excluded_paths=excluded_paths,
     )
     result = scan(options)
     plan = build_cleanup_plan(
@@ -125,14 +130,23 @@ def _scan_payload(params: dict[str, list[str]]) -> dict:
         "duration": result.finished_at - result.started_at,
         "review_bytes": result.review_candidate_bytes,
         "by_risk": result.candidate_bytes_by_risk,
+        "candidate_count": result.file_candidate_count + result.cache_candidate_count,
+        "displayed_entry_count": len(entries),
+        "omitted_entries": (
+            plan.omitted_plan_entries + plan.omitted_scan_candidates
+        ),
         "duplicate_reclaimable_bytes": result.duplicate_reclaimable_bytes,
+        "duplicate_group_count": result.duplicate_group_count,
+        "omitted_duplicate_groups": result.duplicate_group_count - len(duplicates),
         "entries": entries,
         "duplicates": duplicates,
         "skipped": {
             "permission_denied": result.permission_denied,
             "symlinks": result.skipped_symlinks,
             "cloud_dirs": result.skipped_cloud_dirs,
+            "excluded_paths": result.skipped_excluded_paths,
         },
+        "excluded_paths": result.excluded_paths,
     }
     return payload
 
@@ -184,6 +198,32 @@ def _register_apps(state: "_State", payload: dict) -> None:
     state.register("apps", pairs)
 
 
+def _empty_selections(body: dict) -> dict[str, str]:
+    raw_items = body.get("items")
+    if not isinstance(raw_items, list) or not raw_items:
+        raise ValueError("선택한 격리 항목이 없습니다.")
+    if len(raw_items) > _EMPTY_LIMIT:
+        raise ValueError(f"한 번에 {_EMPTY_LIMIT}개까지 처리할 수 있습니다.")
+
+    selections: dict[str, str] = {}
+    for item in raw_items:
+        if not isinstance(item, dict):
+            raise ValueError("격리 항목 형식이 올바르지 않습니다.")
+        action_id = item.get("action_id")
+        instance_token = item.get("instance_token")
+        if (
+            not isinstance(action_id, str)
+            or not action_id
+            or not isinstance(instance_token, str)
+            or not instance_token
+        ):
+            raise ValueError("격리 항목 식별 정보가 올바르지 않습니다.")
+        if action_id in selections:
+            raise ValueError(f"중복 선택된 항목입니다: {action_id}")
+        selections[action_id] = instance_token
+    return selections
+
+
 class _Handler(BaseHTTPRequestHandler):
     state: _State
 
@@ -214,7 +254,10 @@ class _Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         if length <= 0:
             return {}
-        return json.loads(self.rfile.read(length).decode("utf-8"))
+        body = json.loads(self.rfile.read(length).decode("utf-8"))
+        if not isinstance(body, dict):
+            raise ValueError("요청 본문은 JSON 객체여야 합니다.")
+        return body
 
     def do_GET(self) -> None:  # noqa: N802
         route = urlparse(self.path)
@@ -227,7 +270,12 @@ class _Handler(BaseHTTPRequestHandler):
         elif route.path == "/api/scan":
             try:
                 payload = _scan_payload(parse_qs(route.query))
-            except (FileNotFoundError, NotADirectoryError, PermissionError) as exc:
+            except (
+                FileNotFoundError,
+                NotADirectoryError,
+                PermissionError,
+                ValueError,
+            ) as exc:
                 self._send_json({"error": str(exc)}, status=400)
                 return
             _register_scan(self.state, payload)
@@ -237,9 +285,12 @@ class _Handler(BaseHTTPRequestHandler):
             _register_apps(self.state, payload)
             self._send_json(payload)
         elif route.path == "/api/quarantine":
-            self._send_json(
-                {"items": [r.to_dict() for r in engine.list_quarantine()]}
-            )
+            try:
+                items = engine.list_quarantine()
+            except engine.EngineRecoveryError as exc:
+                self._send_json({"error": str(exc)}, status=500)
+                return
+            self._send_json({"items": [r.to_dict() for r in items]})
         else:
             self.send_error(404)
 
@@ -247,8 +298,8 @@ class _Handler(BaseHTTPRequestHandler):
         route = urlparse(self.path)
         try:
             body = self._read_json_body()
-        except json.JSONDecodeError:
-            self._send_json({"error": "잘못된 요청 본문"}, status=400)
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            self._send_json({"error": f"잘못된 요청 본문: {exc}"}, status=400)
             return
 
         if route.path == "/api/reclaim":
@@ -266,18 +317,70 @@ class _Handler(BaseHTTPRequestHandler):
                     status=400,
                 )
                 return
-            outcome = engine.quarantine(items)
+            try:
+                outcome = engine.quarantine(items)
+            except engine.EngineRecoveryError as exc:
+                self._send_json({"error": str(exc)}, status=500)
+                return
             self._send_json(outcome.to_dict())
         elif route.path == "/api/restore":
-            action_id = str(body.get("action_id", ""))
+            action_id = body.get("action_id")
+            instance_token = body.get("instance_token")
+            if (
+                not isinstance(action_id, str)
+                or not action_id
+                or not isinstance(instance_token, str)
+                or not instance_token
+            ):
+                self._send_json(
+                    {"error": "복원할 격리 항목 식별 정보가 필요합니다."},
+                    status=400,
+                )
+                return
             try:
-                record = engine.restore(action_id)
+                record = engine.restore(action_id, instance_token=instance_token)
+            except engine.StaleSelectionError as exc:
+                self._send_json({"error": str(exc)}, status=409)
+                return
+            except engine.EngineRecoveryError as exc:
+                self._send_json({"error": str(exc)}, status=500)
+                return
             except (KeyError, FileNotFoundError, FileExistsError) as exc:
                 self._send_json({"error": str(exc)}, status=400)
                 return
+            except OSError as exc:
+                self._send_json({"error": f"복원 중 오류가 발생했습니다: {exc}"}, status=500)
+                return
             self._send_json(record.to_dict())
         elif route.path == "/api/empty":
-            emptied = engine.empty_quarantine()
+            if body.get("confirmed") is not True:
+                self._send_json(
+                    {
+                        "error": "휴지통으로 옮길 항목을 확인한 뒤 "
+                        "다시 시도하세요."
+                    },
+                    status=400,
+                )
+                return
+            try:
+                selections = _empty_selections(body)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            try:
+                emptied = engine.empty_quarantine(selections=selections)
+            except engine.StaleSelectionError as exc:
+                self._send_json({"error": str(exc)}, status=409)
+                return
+            except engine.EngineRecoveryError as exc:
+                self._send_json({"error": str(exc)}, status=500)
+                return
+            except OSError as exc:
+                self._send_json(
+                    {"error": f"휴지통 이동 중 오류가 발생했습니다: {exc}"},
+                    status=500,
+                )
+                return
             self._send_json(
                 {"emptied": [r.to_dict() for r in emptied], "count": len(emptied)}
             )
