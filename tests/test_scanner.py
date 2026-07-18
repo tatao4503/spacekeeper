@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 from unittest import mock
 
@@ -16,6 +17,33 @@ from spacekeeper.scanner import _allocated_size, scan
 
 
 class ScannerTests(unittest.TestCase):
+    def test_reports_scan_progress_without_changing_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "one.bin").write_bytes(b"progress")
+            updates: list[dict[str, object]] = []
+
+            result = scan(
+                ScanOptions(roots=(root,), large_bytes=1),
+                progress_callback=updates.append,
+            )
+
+        self.assertEqual(result.scanned_files, 1)
+        self.assertEqual(updates[0]["phase"], "scanning")
+        self.assertEqual(updates[-1]["phase"], "finalizing")
+        self.assertEqual(updates[-1]["scanned_files"], 1)
+        self.assertEqual(updates[-1]["candidates_found"], 1)
+
+    def test_honors_preexisting_scan_cancellation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "one.bin").write_bytes(b"cancel")
+            cancel_event = Event()
+            cancel_event.set()
+
+            with self.assertRaises(scanner.ScanCancelled):
+                scan(ScanOptions(roots=(root,)), cancel_event=cancel_event)
+
     def test_classifies_cache_large_and_old_download(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

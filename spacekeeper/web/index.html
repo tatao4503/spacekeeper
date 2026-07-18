@@ -99,8 +99,24 @@
       </div>
 
       <div id="scanning" class="scanning" hidden>
-        <div class="spinner"></div>
-        <p id="scanning-text">공간 사용 패턴을 분석하는 중…</p>
+        <div class="scan-progress-card">
+          <div class="scan-progress-head">
+            <div class="spinner" aria-hidden="true"></div>
+            <div class="scan-progress-copy">
+              <p id="scanning-text" aria-live="polite">공간 사용 패턴을 분석하는 중…</p>
+              <span id="scan-progress-meta">파일을 찾는 중이에요.</span>
+            </div>
+          </div>
+          <div id="scan-progress-track" class="scan-progress-track indeterminate"
+            role="progressbar" aria-label="저장공간 분석 진행률">
+            <span id="scan-progress-fill"></span>
+          </div>
+          <p id="scan-current-path" class="scan-current-path">분석할 경로를 준비하고 있어요.</p>
+          <div class="scan-progress-foot">
+            <span id="scan-phase-note">분석은 파일을 변경하지 않아요.</span>
+            <button id="cancel-scan" class="btn ghost small" type="button">분석 취소</button>
+          </div>
+        </div>
       </div>
 
       <div id="results" class="results" hidden>

@@ -21,6 +21,7 @@ const RISK_LABEL = { low: "낮은 위험", medium: "확인 필요", high: "높�
 let lastScan = null;
 let lastApps = null;
 let lastQuarantine = [];
+let activeScanJobId = null;
 let visibleDashboardIds = new Set();
 const selDash = new Set();
 const selDup = new Set();
@@ -184,22 +185,150 @@ function updateScanCta() {
   document.getElementById("scan-btn-2").textContent = `${scanTargetLabel()} 분석하기`;
 }
 
+function setScanControlsBusy(busy) {
+  document.getElementById("scan-btn").disabled = busy;
+  document.getElementById("scan-btn-2").disabled = busy;
+  document.getElementById("preset").disabled = busy;
+  document.getElementById("opt-duplicates").disabled = busy;
+  document.getElementById("exclude-input").disabled = busy;
+  document.getElementById("path-input").disabled = busy ||
+    document.getElementById("preset").value !== "custom";
+}
+
+function resetScanProgress(targetLabel) {
+  document.getElementById("scanning-text").textContent =
+    `${targetLabel}의 저장공간을 분석하는 중…`;
+  document.getElementById("scan-progress-meta").textContent =
+    "파일을 찾는 중이에요.";
+  document.getElementById("scan-current-path").textContent =
+    "분석할 경로를 준비하고 있어요.";
+  document.getElementById("scan-phase-note").textContent =
+    "분석은 파일을 변경하지 않아요.";
+  const track = document.getElementById("scan-progress-track");
+  track.classList.add("indeterminate");
+  track.removeAttribute("aria-valuenow");
+  document.getElementById("scan-progress-fill").style.width = "";
+  const cancel = document.getElementById("cancel-scan");
+  cancel.disabled = true;
+  cancel.textContent = "분석 준비 중…";
+}
+
+function updateScanProgress(job, targetLabel) {
+  const progress = job.progress || {};
+  const phase = progress.phase || "scanning";
+  const files = Number(progress.scanned_files || 0);
+  const bytes = Number(progress.scanned_bytes || 0);
+  const candidates = Number(progress.candidates_found || 0);
+  const track = document.getElementById("scan-progress-track");
+  const fill = document.getElementById("scan-progress-fill");
+  const title = document.getElementById("scanning-text");
+  const meta = document.getElementById("scan-progress-meta");
+  const note = document.getElementById("scan-phase-note");
+
+  if (job.status === "canceling") {
+    title.textContent = "분석을 안전하게 멈추는 중…";
+    note.textContent = "현재 파일 확인을 마치면 바로 중단합니다.";
+  } else if (phase === "duplicates") {
+    title.textContent = "파일 내용을 비교하는 중…";
+    note.textContent = "크기가 같은 파일만 안전하게 비교하고 있어요.";
+  } else if (phase === "finalizing") {
+    title.textContent = "분석 결과를 정리하는 중…";
+    note.textContent = "정리 후보와 주의도를 마지막으로 확인하고 있어요.";
+  } else {
+    title.textContent = `${targetLabel}의 저장공간을 분석하는 중…`;
+    note.textContent = "분석은 파일을 변경하지 않아요.";
+  }
+
+  if (phase === "duplicates" && progress.duplicate_files_total) {
+    const done = Number(progress.duplicate_files_done || 0);
+    const total = Number(progress.duplicate_files_total);
+    const percent = Math.min(100, Math.round(done / total * 100));
+    track.classList.remove("indeterminate");
+    track.setAttribute("aria-valuenow", String(percent));
+    fill.style.width = `${percent}%`;
+    meta.textContent = `중복 후보 ${done.toLocaleString()} / ${total.toLocaleString()}개 비교 · ` +
+      `전체 ${files.toLocaleString()}개 파일`;
+  } else if (phase === "finalizing") {
+    track.classList.remove("indeterminate");
+    track.setAttribute("aria-valuenow", "100");
+    fill.style.width = "100%";
+    meta.textContent = `${files.toLocaleString()}개 파일 · ${fmtBytes(bytes)} 확인 · ` +
+      `후보 ${candidates.toLocaleString()}개`;
+  } else {
+    track.classList.add("indeterminate");
+    track.removeAttribute("aria-valuenow");
+    fill.style.width = "";
+    meta.textContent = `${files.toLocaleString()}개 파일 · ${fmtBytes(bytes)} 확인 · ` +
+      `후보 ${candidates.toLocaleString()}개`;
+  }
+  document.getElementById("scan-current-path").textContent =
+    progress.current_path || "분석 경로를 확인하고 있어요.";
+}
+
+async function waitForScan(jobId, targetLabel) {
+  while (activeScanJobId === jobId) {
+    const job = await api(`/api/scan/status?job_id=${encodeURIComponent(jobId)}`);
+    updateScanProgress(job, targetLabel);
+    if (!["running", "canceling"].includes(job.status)) return job;
+    await new Promise((resolve) => setTimeout(resolve, 180));
+  }
+  return null;
+}
+
+async function cancelScan() {
+  if (!activeScanJobId) return;
+  const button = document.getElementById("cancel-scan");
+  button.disabled = true;
+  button.textContent = "취소 요청 중…";
+  try {
+    const job = await api("/api/scan/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_id: activeScanJobId }),
+    });
+    updateScanProgress(job, scanTargetLabel());
+  } catch (e) {
+    button.disabled = false;
+    button.textContent = "분석 취소";
+    toast(e.message, "err");
+  }
+}
+
 async function runScan() {
+  if (activeScanJobId) return;
   const path = resolvePath();
-  const dup = document.getElementById("opt-duplicates").checked ? "1" : "0";
+  const duplicates = document.getElementById("opt-duplicates").checked;
   const excluded = document.getElementById("exclude-input").value
     .split(/[\n,]+/)
     .map((value) => value.trim())
     .filter(Boolean);
+  const targetLabel = scanTargetLabel();
   document.getElementById("empty-state").hidden = true;
   document.getElementById("results").hidden = true;
   document.getElementById("scanning").hidden = false;
-  document.getElementById("scanning-text").textContent = `${scanTargetLabel()}의 저장공간을 분석하는 중…`;
+  resetScanProgress(targetLabel);
+  setScanControlsBusy(true);
 
-  const params = new URLSearchParams({ paths: path, duplicates: dup });
-  for (const excludedPath of excluded) params.append("exclude", excludedPath);
   try {
-    const data = await api("/api/scan?" + params.toString());
+    const started = await api("/api/scan/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths: [path], duplicates, exclude: excluded }),
+    });
+    activeScanJobId = started.job_id;
+    document.getElementById("cancel-scan").disabled = false;
+    document.getElementById("cancel-scan").textContent = "분석 취소";
+    updateScanProgress(started, targetLabel);
+    const finished = await waitForScan(started.job_id, targetLabel);
+    if (!finished) return;
+    if (finished.status === "cancelled") {
+      toast("분석을 취소했습니다. 파일은 변경되지 않았어요.", "ok");
+      return;
+    }
+    if (finished.status === "failed") {
+      throw new Error(finished.error || "분석을 완료하지 못했어요.");
+    }
+    const data = finished.result;
     lastScan = data;
     selDash.clear();
     selDup.clear();
@@ -209,9 +338,12 @@ async function runScan() {
     renderDuplicates();
   } catch (e) {
     toast(e.message, "err");
-    document.getElementById("empty-state").hidden = false;
   } finally {
+    activeScanJobId = null;
+    setScanControlsBusy(false);
     document.getElementById("scanning").hidden = true;
+    document.getElementById("results").hidden = !lastScan;
+    document.getElementById("empty-state").hidden = Boolean(lastScan);
   }
 }
 
@@ -713,6 +845,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateScanCta();
   document.getElementById("scan-btn").addEventListener("click", runScan);
   document.getElementById("scan-btn-2").addEventListener("click", runScan);
+  document.getElementById("cancel-scan").addEventListener("click", cancelScan);
   document.getElementById("result-search").addEventListener("input", renderFilteredResults);
   document.getElementById("risk-filter").addEventListener("change", renderFilteredResults);
   document.getElementById("export-scan").addEventListener("click", exportLastScan);

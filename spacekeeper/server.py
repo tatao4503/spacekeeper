@@ -12,8 +12,11 @@ import os
 import subprocess
 import sys
 import threading
+import uuid
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from . import engine
@@ -21,12 +24,51 @@ from .apps import scan_apps
 from .models import ScanOptions
 from .planning import _action_id, build_cleanup_plan
 from .report import format_bytes
-from .scanner import scan
+from .scanner import ScanCancelled, scan
 
 STATIC_DIR = Path(__file__).parent / "web"
 _PLAN_LIMIT = 500
 _EMPTY_LIMIT = 10_000
 _REVEAL_TIMEOUT_SECONDS = 5
+
+
+class _ScanBusyError(RuntimeError):
+    """Raised when another scan is already using the scanner."""
+
+
+class _UnknownScanJob(LookupError):
+    """Raised when a scan job is no longer available."""
+
+
+@dataclass
+class _ScanJob:
+    job_id: str
+    params: dict[str, list[str]]
+    status: str = "running"
+    progress: dict[str, object] = field(
+        default_factory=lambda: {
+            "phase": "scanning",
+            "current_path": "",
+            "scanned_files": 0,
+            "scanned_bytes": 0,
+            "candidates_found": 0,
+            "directories_pending": 0,
+            "duplicate_files_done": 0,
+            "duplicate_files_total": 0,
+        }
+    )
+    result: dict | None = None
+    error: str | None = None
+    cancel_event: threading.Event = field(default_factory=threading.Event)
+
+    def snapshot(self) -> dict:
+        return {
+            "job_id": self.job_id,
+            "status": self.status,
+            "progress": dict(self.progress),
+            "result": self.result,
+            "error": self.error,
+        }
 
 
 class _State:
@@ -39,6 +81,7 @@ class _State:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._buckets: dict[str, dict[str, tuple[str, str]]] = {}
+        self._scan_job: _ScanJob | None = None
 
     def register(self, bucket: str, pairs: list[tuple[str, str, str]]) -> None:
         with self._lock:
@@ -58,8 +101,113 @@ class _State:
                     items.append((action_id, match[0], match[1]))
             return items
 
+    def start_scan(self, params: dict[str, list[str]]) -> dict:
+        with self._lock:
+            if self._scan_job is not None and self._scan_job.status in {
+                "running",
+                "canceling",
+            }:
+                raise _ScanBusyError("이미 저장공간을 분석하고 있습니다.")
+            job = _ScanJob(job_id=uuid.uuid4().hex, params=params)
+            self._scan_job = job
+            initial_snapshot = job.snapshot()
 
-def _scan_payload(params: dict[str, list[str]]) -> dict:
+        worker = threading.Thread(
+            target=self._run_scan,
+            args=(job,),
+            name=f"spacekeeper-scan-{job.job_id[:8]}",
+            daemon=True,
+        )
+        worker.start()
+        return initial_snapshot
+
+    def scan_status(self, job_id: str) -> dict:
+        with self._lock:
+            job = self._current_scan(job_id)
+            return job.snapshot()
+
+    def cancel_scan(self, job_id: str) -> dict:
+        with self._lock:
+            job = self._current_scan(job_id)
+            if job.status == "running":
+                job.status = "canceling"
+                job.cancel_event.set()
+            return job.snapshot()
+
+    def _current_scan(self, job_id: str) -> _ScanJob:
+        if self._scan_job is None or self._scan_job.job_id != job_id:
+            raise _UnknownScanJob("분석 작업을 찾을 수 없습니다.")
+        return self._scan_job
+
+    def _update_scan_progress(
+        self, job_id: str, progress: dict[str, object]
+    ) -> None:
+        with self._lock:
+            if self._scan_job is None or self._scan_job.job_id != job_id:
+                return
+            self._scan_job.progress = dict(progress)
+
+    def _finish_scan(self, job: _ScanJob, payload: dict) -> None:
+        pairs = [
+            (entry["action_id"], entry["path"], entry["kind"])
+            for entry in payload["entries"]
+        ]
+        for group in payload["duplicates"]:
+            pairs.extend(
+                (item["action_id"], item["path"], "file")
+                for item in group["files"]
+            )
+
+        with self._lock:
+            if self._scan_job is not job:
+                return
+            if job.cancel_event.is_set():
+                job.status = "cancelled"
+                return
+            self._buckets["scan"] = {
+                action_id: (path, kind) for action_id, path, kind in pairs
+            }
+            job.result = payload
+            job.status = "completed"
+
+    def _run_scan(self, job: _ScanJob) -> None:
+        try:
+            payload = _scan_payload(
+                job.params,
+                progress_callback=lambda progress: self._update_scan_progress(
+                    job.job_id, progress
+                ),
+                cancel_event=job.cancel_event,
+            )
+        except ScanCancelled:
+            with self._lock:
+                if self._scan_job is job:
+                    job.status = "cancelled"
+        except (
+            FileNotFoundError,
+            NotADirectoryError,
+            PermissionError,
+            ValueError,
+        ) as exc:
+            with self._lock:
+                if self._scan_job is job:
+                    job.status = "failed"
+                    job.error = str(exc)
+        except Exception as exc:  # pragma: no cover - last-resort worker guard
+            with self._lock:
+                if self._scan_job is job:
+                    job.status = "failed"
+                    job.error = f"분석 중 예기치 않은 오류가 발생했습니다: {exc}"
+        else:
+            self._finish_scan(job, payload)
+
+
+def _scan_payload(
+    params: dict[str, list[str]],
+    *,
+    progress_callback: Callable[[dict[str, object]], None] | None = None,
+    cancel_event: threading.Event | None = None,
+) -> dict:
     raw_paths = params.get("paths", [])
     roots = tuple(Path(p) for p in raw_paths if p.strip()) or (
         Path.home() / "Downloads",
@@ -81,7 +229,11 @@ def _scan_payload(params: dict[str, list[str]]) -> dict:
         include_cloud_storage=include_cloud,
         excluded_paths=excluded_paths,
     )
-    result = scan(options)
+    result = scan(
+        options,
+        progress_callback=progress_callback,
+        cancel_event=cancel_event,
+    )
     plan = build_cleanup_plan(
         result, risks={"low", "medium", "high"}, limit=_PLAN_LIMIT
     )
@@ -160,6 +312,38 @@ def _register_scan(state: "_State", payload: dict) -> None:
     for group in payload["duplicates"]:
         pairs.extend((f["action_id"], f["path"], "file") for f in group["files"])
     state.register("scan", pairs)
+
+
+def _scan_params_from_body(body: dict) -> dict[str, list[str]]:
+    raw_paths = body.get("paths")
+    if not isinstance(raw_paths, list) or not raw_paths:
+        raise ValueError("분석할 경로를 하나 이상 선택해주세요.")
+    if len(raw_paths) > 32:
+        raise ValueError("한 번에 32개 경로까지 분석할 수 있습니다.")
+    if not all(isinstance(path, str) for path in raw_paths):
+        raise ValueError("분석 경로 형식이 올바르지 않습니다.")
+    paths = [path.strip() for path in raw_paths if path.strip()]
+    if not paths:
+        raise ValueError("빈 분석 경로는 사용할 수 없습니다.")
+
+    raw_excluded = body.get("exclude", [])
+    if not isinstance(raw_excluded, list) or not all(
+        isinstance(path, str) for path in raw_excluded
+    ):
+        raise ValueError("제외 경로 형식이 올바르지 않습니다.")
+
+    params = {
+        "paths": paths,
+        "exclude": [path.strip() for path in raw_excluded if path.strip()],
+        "duplicates": ["1" if body.get("duplicates") is True else "0"],
+        "include_cloud": ["1" if body.get("include_cloud") is True else "0"],
+    }
+    for key, default in (("large_mb", 500), ("old_days", 180)):
+        value = body.get(key, default)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f"{key}는 0보다 큰 정수여야 합니다.")
+        params[key] = [str(value)]
+    return params
 
 
 def _apps_payload() -> dict:
@@ -311,6 +495,20 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             _register_scan(self.state, payload)
             self._send_json(payload)
+        elif route.path == "/api/scan/status":
+            job_id = parse_qs(route.query).get("job_id", [""])[0]
+            if not job_id:
+                self._send_json(
+                    {"error": "분석 작업 식별자가 필요합니다."},
+                    status=400,
+                )
+                return
+            try:
+                payload = self.state.scan_status(job_id)
+            except _UnknownScanJob as exc:
+                self._send_json({"error": str(exc)}, status=404)
+                return
+            self._send_json(payload)
         elif route.path == "/api/apps":
             payload = _apps_payload()
             _register_apps(self.state, payload)
@@ -333,7 +531,32 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json({"error": f"잘못된 요청 본문: {exc}"}, status=400)
             return
 
-        if route.path == "/api/reveal":
+        if route.path == "/api/scan/start":
+            try:
+                params = _scan_params_from_body(body)
+                payload = self.state.start_scan(params)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            except _ScanBusyError as exc:
+                self._send_json({"error": str(exc)}, status=409)
+                return
+            self._send_json(payload, status=202)
+        elif route.path == "/api/scan/cancel":
+            job_id = body.get("job_id")
+            if not isinstance(job_id, str) or not job_id:
+                self._send_json(
+                    {"error": "취소할 분석 작업 식별자가 필요합니다."},
+                    status=400,
+                )
+                return
+            try:
+                payload = self.state.cancel_scan(job_id)
+            except _UnknownScanJob as exc:
+                self._send_json({"error": str(exc)}, status=404)
+                return
+            self._send_json(payload, status=202)
+        elif route.path == "/api/reveal":
             action_id = body.get("action_id")
             scope = body.get("scope")
             if not isinstance(action_id, str) or not action_id:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -69,6 +70,25 @@ class ServerSafetyTests(unittest.TestCase):
                 return exc.code, json.load(exc)
             finally:
                 exc.close()
+
+    def _get(self, path: str) -> tuple[int, dict]:
+        try:
+            with urlopen(self.base_url + path, timeout=2) as response:
+                return response.status, json.load(response)
+        except HTTPError as exc:
+            try:
+                return exc.code, json.load(exc)
+            finally:
+                exc.close()
+
+    def _wait_for_scan(self, job_id: str) -> dict:
+        for _ in range(200):
+            status, payload = self._get(f"/api/scan/status?job_id={job_id}")
+            self.assertEqual(status, 200)
+            if payload["status"] not in {"running", "canceling"}:
+                return payload
+            time.sleep(0.01)
+        self.fail("분석 작업이 시간 내에 종료되지 않았습니다.")
 
     def _active_empty_items(self) -> list[dict[str, str]]:
         return [
@@ -204,6 +224,73 @@ class ServerSafetyTests(unittest.TestCase):
         self.assertEqual(payload["candidate_count"], server._PLAN_LIMIT + 1)
         self.assertEqual(payload["displayed_entry_count"], server._PLAN_LIMIT)
         self.assertEqual(payload["omitted_entries"], 1)
+
+    def test_background_scan_reports_progress_and_completion(self) -> None:
+        status, started = self._post(
+            {"paths": [str(self.root)], "duplicates": False},
+            path="/api/scan/start",
+        )
+
+        self.assertEqual(status, 202)
+        self.assertEqual(started["status"], "running")
+        finished = self._wait_for_scan(started["job_id"])
+        self.assertEqual(finished["status"], "completed")
+        self.assertIsNone(finished["error"])
+        self.assertGreaterEqual(finished["result"]["scanned_files"], 1)
+        self.assertEqual(finished["progress"]["phase"], "finalizing")
+
+    def test_background_scan_can_be_cancelled_and_rejects_overlap(self) -> None:
+        worker_started = threading.Event()
+
+        def blocking_scan(
+            _params,
+            *,
+            progress_callback=None,
+            cancel_event=None,
+        ):
+            progress_callback(
+                {
+                    "phase": "scanning",
+                    "current_path": str(self.root),
+                    "scanned_files": 7,
+                    "scanned_bytes": 4096,
+                    "candidates_found": 2,
+                    "directories_pending": 3,
+                    "duplicate_files_done": 0,
+                    "duplicate_files_total": 0,
+                }
+            )
+            worker_started.set()
+            if cancel_event.wait(timeout=2):
+                raise server.ScanCancelled("사용자가 분석을 중단했습니다.")
+            raise AssertionError("취소 신호가 전달되지 않았습니다.")
+
+        with mock.patch.object(server, "_scan_payload", blocking_scan):
+            status, started = self._post(
+                {"paths": [str(self.root)]},
+                path="/api/scan/start",
+            )
+            self.assertEqual(status, 202)
+            self.assertTrue(worker_started.wait(timeout=1))
+
+            overlap_status, overlap = self._post(
+                {"paths": [str(self.root)]},
+                path="/api/scan/start",
+            )
+            self.assertEqual(overlap_status, 409)
+            self.assertIn("이미", overlap["error"])
+
+            cancel_status, canceling = self._post(
+                {"job_id": started["job_id"]},
+                path="/api/scan/cancel",
+            )
+            self.assertEqual(cancel_status, 202)
+            self.assertEqual(canceling["status"], "canceling")
+            finished = self._wait_for_scan(started["job_id"])
+
+        self.assertEqual(finished["status"], "cancelled")
+        self.assertEqual(finished["progress"]["scanned_files"], 7)
+        self.assertIsNone(finished["result"])
 
     def test_empty_requires_confirmation_and_selected_ids(self) -> None:
         self._post({"action_ids": ["C-test"], "confirmed": True})

@@ -8,6 +8,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from threading import Event
+from typing import Callable
 
 from .models import (
     CacheCandidate,
@@ -38,6 +40,11 @@ DEFAULT_EXCLUDED_ROOTS = (
     Path.home() / ".Trash",
 )
 AUTOMATIC_EXCLUDED_DIR_NAMES = {".Trashes"}
+ProgressCallback = Callable[[dict[str, object]], None]
+
+
+class ScanCancelled(Exception):
+    """Raised when a caller requests cooperative scan cancellation."""
 
 
 @dataclass(frozen=True)
@@ -312,28 +319,46 @@ def _is_automatic_excluded_directory(path: Path) -> bool:
     return any(part in AUTOMATIC_EXCLUDED_DIR_NAMES for part in path.parts)
 
 
-def _hash_file(path: Path) -> str:
+def _raise_if_cancelled(cancel_event: Event | None) -> None:
+    if cancel_event is not None and cancel_event.is_set():
+        raise ScanCancelled("사용자가 분석을 중단했습니다.")
+
+
+def _hash_file(path: Path, cancel_event: Event | None = None) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         while chunk := handle.read(1024 * 1024):
+            _raise_if_cancelled(cancel_event)
             digest.update(chunk)
     return digest.hexdigest()
 
 
 def _find_duplicates(
-    buckets: dict[int, list[tuple[Path, int]]], errors: list[str]
+    buckets: dict[int, list[tuple[Path, int]]],
+    errors: list[str],
+    cancel_event: Event | None = None,
+    progress_callback: Callable[[Path, int, int], None] | None = None,
 ) -> list[DuplicateGroup]:
     groups: list[DuplicateGroup] = []
+    hash_total = sum(len(entries) for entries in buckets.values() if len(entries) > 1)
+    hashed_files = 0
     for logical_size, entries in buckets.items():
+        _raise_if_cancelled(cancel_event)
         if len(entries) < 2:
             continue
         by_digest: dict[str, list[tuple[str, int]]] = defaultdict(list)
         for path, allocated_size in entries:
+            _raise_if_cancelled(cancel_event)
             try:
-                by_digest[_hash_file(path)].append((str(path), allocated_size))
+                by_digest[_hash_file(path, cancel_event)].append(
+                    (str(path), allocated_size)
+                )
             except (OSError, PermissionError) as exc:
                 if len(errors) < 20:
                     errors.append(f"중복 검사 건너뜀: {path} ({exc})")
+            hashed_files += 1
+            if progress_callback is not None:
+                progress_callback(path, hashed_files, hash_total)
         for digest, matches in by_digest.items():
             if len(matches) < 2:
                 continue
@@ -362,7 +387,12 @@ def _is_cloud_container(path: Path) -> bool:
     }
 
 
-def scan(options: ScanOptions) -> ScanResult:
+def scan(
+    options: ScanOptions,
+    *,
+    progress_callback: ProgressCallback | None = None,
+    cancel_event: Event | None = None,
+) -> ScanResult:
     started_at = time.time()
     now = options.now if options.now is not None else started_at
     roots = _normalize_roots(options.roots)
@@ -379,10 +409,42 @@ def scan(options: ScanOptions) -> ScanResult:
     file_candidates: list[FileCandidate] = []
     cache_aggregates: dict[Path, _CacheAggregate] = {}
     duplicate_buckets: dict[int, list[tuple[Path, int]]] = defaultdict(list)
+    last_progress_at = 0.0
+
+    def emit_progress(
+        phase: str,
+        current_path: Path,
+        *,
+        force: bool = False,
+        duplicate_files_done: int = 0,
+        duplicate_files_total: int = 0,
+    ) -> None:
+        nonlocal last_progress_at
+        if progress_callback is None:
+            return
+        progress_now = time.monotonic()
+        if not force and progress_now - last_progress_at < 0.1:
+            return
+        last_progress_at = progress_now
+        progress_callback(
+            {
+                "phase": phase,
+                "current_path": str(current_path),
+                "scanned_files": scanned_files,
+                "scanned_bytes": scanned_bytes,
+                "candidates_found": len(file_candidates) + len(cache_aggregates),
+                "directories_pending": len(stack),
+                "duplicate_files_done": duplicate_files_done,
+                "duplicate_files_total": duplicate_files_total,
+            }
+        )
 
     stack = list(reversed(roots))
+    emit_progress("scanning", roots[0], force=True)
     while stack:
+        _raise_if_cancelled(cancel_event)
         directory = stack.pop()
+        emit_progress("scanning", directory)
         if (
             _is_excluded(directory, excluded_paths)
             or _is_automatic_excluded_directory(directory)
@@ -392,6 +454,7 @@ def scan(options: ScanOptions) -> ScanResult:
         try:
             with os.scandir(directory) as entries:
                 for entry in entries:
+                    _raise_if_cancelled(cancel_event)
                     path = Path(entry.path)
                     try:
                         if entry.is_symlink():
@@ -455,6 +518,7 @@ def scan(options: ScanOptions) -> ScanResult:
                         duplicate_buckets[stat.st_size].append(
                             (path, allocated_size)
                         )
+                    emit_progress("scanning", path)
         except PermissionError:
             permission_denied += 1
         except OSError as exc:
@@ -477,11 +541,28 @@ def scan(options: ScanOptions) -> ScanResult:
     ]
     file_candidates.sort(key=lambda item: item.size, reverse=True)
     cache_candidates.sort(key=lambda item: item.size, reverse=True)
-    duplicate_groups = (
-        _find_duplicates(duplicate_buckets, errors)
-        if options.find_duplicates
-        else []
-    )
+    _raise_if_cancelled(cancel_event)
+    duplicate_groups: list[DuplicateGroup] = []
+    if options.find_duplicates:
+        emit_progress("duplicates", roots[0], force=True)
+
+        def emit_duplicate_progress(path: Path, done: int, total: int) -> None:
+            emit_progress(
+                "duplicates",
+                path,
+                force=True,
+                duplicate_files_done=done,
+                duplicate_files_total=total,
+            )
+
+        duplicate_groups = _find_duplicates(
+            duplicate_buckets,
+            errors,
+            cancel_event=cancel_event,
+            progress_callback=emit_duplicate_progress,
+        )
+    _raise_if_cancelled(cancel_event)
+    emit_progress("finalizing", roots[0], force=True)
     review_candidate_bytes = sum(item.size for item in file_candidates) + sum(
         item.size for item in cache_candidates
     )

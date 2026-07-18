@@ -300,15 +300,49 @@ body {
 .trust-list { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin-top: 22px; color: var(--faint); font-size: 11.5px; }
 .trust-list span { display: flex; align-items: center; gap: 6px; }
 .trust-list i { width: 5px; height: 5px; border-radius: 50%; background: var(--low); box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.09); }
-.scanning { text-align: center; padding: 130px 20px; color: var(--muted); }
+.scanning { padding: 72px 20px 96px; color: var(--muted); }
+.scan-progress-card {
+  width: min(620px, 100%); margin: 0 auto; padding: 25px 26px 22px;
+  background: linear-gradient(145deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.scan-progress-head { display: flex; align-items: center; gap: 15px; text-align: left; }
+.scan-progress-copy { min-width: 0; }
+.scan-progress-copy p { margin: 0 0 4px; color: var(--text); font-size: 15px; font-weight: 630; }
+.scan-progress-copy span { display: block; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .spinner {
-  width: 34px; height: 34px; margin: 0 auto 18px;
+  width: 34px; height: 34px; flex: 0 0 auto;
   border: 3px solid var(--track);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
+.scan-progress-track {
+  position: relative; height: 7px; margin: 22px 0 13px; overflow: hidden;
+  border-radius: 999px; background: var(--track);
+}
+.scan-progress-track span {
+  display: block; width: 0; height: 100%; border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #78afff);
+  transition: width 0.22s ease;
+}
+.scan-progress-track.indeterminate span {
+  width: 34%; animation: scan-progress 1.25s ease-in-out infinite;
+}
+.scan-current-path {
+  min-height: 18px; margin: 0; overflow: hidden; color: var(--faint); font-size: 11.5px;
+  text-align: left; text-overflow: ellipsis; white-space: nowrap;
+}
+.scan-progress-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin-top: 17px; padding-top: 16px; border-top: 1px solid var(--line);
+  color: var(--faint); font-size: 11.5px; text-align: left;
+}
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes scan-progress {
+  from { transform: translateX(-115%); }
+  to { transform: translateX(310%); }
+}
 
 /* Hero */
 .hero {
@@ -508,6 +542,10 @@ body {
   .empty-state h2 { font-size: 22px; }
   .empty-state h2 br { display: none; }
   .trust-list { gap: 10px 14px; }
+  .scanning { padding: 48px 0 68px; }
+  .scan-progress-card { padding: 21px 19px 18px; }
+  .scan-progress-foot { align-items: flex-start; flex-direction: column; }
+  #cancel-scan { width: 100%; }
   .results-tools .tool-input { min-width: 100%; }
   .cat-head, .entry { padding-left: 15px; padding-right: 15px; }
   .cat-size { gap: 6px; }
