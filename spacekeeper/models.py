@@ -13,6 +13,7 @@ class ScanOptions:
     top: int = 20
     find_duplicates: bool = False
     duplicate_min_bytes: int = 10 * 1024 * 1024
+    include_cloud_storage: bool = False
     now: float | None = None
 
 
@@ -20,6 +21,7 @@ class ScanOptions:
 class FileCandidate:
     path: str
     size: int
+    logical_size: int
     modified_at: float
     category: str
     reasons: list[str]
@@ -31,6 +33,7 @@ class FileCandidate:
 class CacheCandidate:
     path: str
     size: int
+    logical_size: int
     file_count: int
     category: str
     reason: str
@@ -40,7 +43,7 @@ class CacheCandidate:
 
 @dataclass
 class DuplicateGroup:
-    size_each: int
+    logical_size_each: int
     reclaimable_bytes: int
     paths: list[str]
     digest: str
@@ -53,12 +56,18 @@ class ScanResult:
     finished_at: float
     scanned_files: int
     scanned_bytes: int
+    scanned_logical_bytes: int
+    volume_total_bytes: int
+    volume_used_bytes: int
+    volume_free_bytes: int
     skipped_symlinks: int
+    skipped_cloud_dirs: int
     permission_denied: int
     file_candidate_count: int
     cache_candidate_count: int
     duplicate_group_count: int
     review_candidate_bytes: int
+    candidate_bytes_by_risk: dict[str, int]
     duplicate_reclaimable_bytes: int
     errors: list[str] = field(default_factory=list)
     file_candidates: list[FileCandidate] = field(default_factory=list)

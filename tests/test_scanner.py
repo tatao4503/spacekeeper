@@ -6,10 +6,11 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from spacekeeper.models import ScanOptions
 from spacekeeper.report import format_bytes, render_text
-from spacekeeper.scanner import scan
+from spacekeeper.scanner import _allocated_size, scan
 
 
 class ScannerTests(unittest.TestCase):
@@ -74,7 +75,8 @@ class ScannerTests(unittest.TestCase):
             )
 
             self.assertEqual(len(result.duplicate_groups), 1)
-            self.assertEqual(result.duplicate_groups[0].reclaimable_bytes, 12)
+            self.assertGreater(result.duplicate_groups[0].reclaimable_bytes, 0)
+            self.assertEqual(result.duplicate_groups[0].logical_size_each, 12)
             self.assertEqual(len(result.duplicate_groups[0].paths), 2)
 
     def test_nested_roots_are_scanned_once(self) -> None:
@@ -101,17 +103,85 @@ class ScannerTests(unittest.TestCase):
 
             self.assertEqual(len(result.file_candidates), 1)
             self.assertEqual(result.file_candidate_count, 2)
-            self.assertEqual(result.review_candidate_bytes, 8)
+            self.assertEqual(
+                result.review_candidate_bytes,
+                result.file_candidates[0].size * result.file_candidate_count,
+            )
+            self.assertEqual(
+                sum(result.candidate_bytes_by_risk.values()),
+                result.review_candidate_bytes,
+            )
             self.assertIn("1개 생략", render_text(result))
+
+    def test_ignores_zero_byte_macos_metadata_as_cleanup_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloads = Path(temp_dir) / "Downloads"
+            downloads.mkdir()
+            metadata = downloads / ".localized"
+            metadata.touch()
+            old_timestamp = time.time() - 400 * 86400
+            os.utime(metadata, (old_timestamp, old_timestamp))
+
+            result = scan(
+                ScanOptions(
+                    roots=(downloads,),
+                    old_days=180,
+                    now=time.time(),
+                )
+            )
+
+            self.assertEqual(result.scanned_files, 1)
+            self.assertEqual(result.file_candidate_count, 0)
+            self.assertEqual(result.review_candidate_bytes, 0)
+
+    def test_skips_cloud_roots_unless_explicitly_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cloud = root / "Library" / "CloudStorage"
+            cloud.mkdir(parents=True)
+            (cloud / "remote.txt").write_text("remote", encoding="utf-8")
+
+            home_result = scan(ScanOptions(roots=(root,)))
+            explicit_result = scan(ScanOptions(roots=(cloud,)))
+
+            self.assertEqual(home_result.scanned_files, 0)
+            self.assertEqual(home_result.skipped_cloud_dirs, 1)
+            self.assertEqual(explicit_result.scanned_files, 1)
+
+    def test_rust_target_is_grouped_as_build_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            target_file = project / "target" / "debug" / "artifact"
+            target_file.parent.mkdir(parents=True)
+            (project / "Cargo.toml").write_text("[package]", encoding="utf-8")
+            target_file.write_bytes(b"build-output")
+
+            result = scan(ScanOptions(roots=(project,)))
+
+            self.assertEqual(result.cache_candidate_count, 1)
+            self.assertEqual(result.cache_candidates[0].category, "rust_build")
+            self.assertEqual(
+                result.cache_candidates[0].path,
+                str((project / "target").resolve()),
+            )
+
+    def test_allocated_size_uses_disk_blocks_including_zero(self) -> None:
+        sparse_stat = SimpleNamespace(st_blocks=8, st_size=16 * 1024 * 1024)
+        empty_sparse_stat = SimpleNamespace(st_blocks=0, st_size=16 * 1024 * 1024)
+
+        self.assertEqual(_allocated_size(sparse_stat), 4096)
+        self.assertEqual(_allocated_size(empty_sparse_stat), 0)
 
     def test_report_and_json_declare_read_only_safety(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result = scan(ScanOptions(roots=(Path(temp_dir),)))
 
             self.assertIn("읽기 전용", render_text(result))
+            self.assertIn("APFS", render_text(result))
             payload = json.loads(json.dumps(result.to_dict()))
             self.assertTrue(payload["safety"]["read_only"])
             self.assertFalse(payload["safety"]["network_used"])
+            self.assertGreater(payload["volume_total_bytes"], 0)
 
     def test_format_bytes(self) -> None:
         self.assertEqual(format_bytes(1024), "1.0 KB")

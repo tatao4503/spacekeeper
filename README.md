@@ -10,6 +10,7 @@ Spacekeeper는 맥북 저장공간을 **삭제하지 않고 먼저 설명하는*
 - 선택적으로 SHA-256 기반 완전 동일 파일 찾기
 - 사람이 읽는 한국어 보고서 또는 JSON 보고서 출력
 - 심볼릭 링크를 따라가지 않고, 권한이 없는 폴더는 건너뛰기
+- 희소 파일과 클라우드 자리표시자로 부풀지 않도록 실제 할당 블록 기준 계산
 
 > 후보는 자동 삭제 승인이 아닙니다. 특히 `검토 필요`와 `높은 주의` 항목은 내용을 직접 확인해야 합니다.
 
@@ -29,9 +30,12 @@ python3 -m spacekeeper ~/Desktop ~/Documents
 python3 -m spacekeeper ~ --large-mb 1000 --old-days 365
 python3 -m spacekeeper ~/Downloads --duplicates
 python3 -m spacekeeper ~/Downloads --json > report.json
+python3 -m spacekeeper ~ --include-cloud
 ```
 
 `--duplicates`는 파일 내용을 읽어 해시를 계산하므로 큰 폴더에서는 오래 걸릴 수 있습니다. 그래도 파일을 수정하거나 외부로 전송하지는 않습니다.
+
+홈 폴더 전체를 스캔할 때는 오프라인 파일 다운로드와 공급자 지연을 피하도록 iCloud Drive와 `~/Library/CloudStorage`를 기본 제외합니다. 경로를 직접 지정하거나 `--include-cloud`를 쓸 때만 포함합니다.
 
 ## 개발 확인
 

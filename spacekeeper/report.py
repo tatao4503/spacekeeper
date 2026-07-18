@@ -32,19 +32,34 @@ def render_text(result: ScanResult) -> str:
         "=" * 31,
         "안전 상태: 읽기 전용 · 삭제 없음 · 네트워크 전송 없음 · 심볼릭 링크 미추적",
         f"스캔 경로: {', '.join(result.roots)}",
-        f"확인한 파일: {result.scanned_files:,}개 / {format_bytes(result.scanned_bytes)}",
+        f"볼륨 상태: 전체 {format_bytes(result.volume_total_bytes)} / "
+        f"사용 {format_bytes(result.volume_used_bytes)} / "
+        f"여유 {format_bytes(result.volume_free_bytes)}",
+        f"확인한 파일: {result.scanned_files:,}개",
+        f"파일별 할당 블록 합계: {format_bytes(result.scanned_bytes)} "
+        f"(논리 크기 {format_bytes(result.scanned_logical_bytes)})",
         f"소요 시간: {duration:.2f}초",
-        f"검토 후보(중복 제외): {format_bytes(result.review_candidate_bytes)}",
+        f"검토 후보 할당량 추정(중복 제외): {format_bytes(result.review_candidate_bytes)}",
+        "위험도별 후보: "
+        f"낮은 위험 {format_bytes(result.candidate_bytes_by_risk['low'])} / "
+        f"검토 필요 {format_bytes(result.candidate_bytes_by_risk['medium'])} / "
+        f"높은 주의 {format_bytes(result.candidate_bytes_by_risk['high'])}",
+        "참고: APFS 복제·공유 블록 때문에 실제 확보량은 이 합계보다 작을 수 있습니다.",
     ]
     if result.duplicate_groups:
         lines.append(
             "완전 동일 파일의 이론상 절약량: "
             f"{format_bytes(result.duplicate_reclaimable_bytes)} (다른 후보와 겹칠 수 있음)"
         )
-    if result.permission_denied or result.skipped_symlinks:
+    if (
+        result.permission_denied
+        or result.skipped_symlinks
+        or result.skipped_cloud_dirs
+    ):
         lines.append(
             f"건너뜀: 권한 제한 {result.permission_denied}건 / "
-            f"심볼릭 링크 {result.skipped_symlinks}건"
+            f"심볼릭 링크 {result.skipped_symlinks}건 / "
+            f"클라우드 루트 {result.skipped_cloud_dirs}건"
         )
 
     hidden_cache_count = result.cache_candidate_count - len(result.cache_candidates)
@@ -92,7 +107,8 @@ def render_text(result: ScanResult) -> str:
         lines.append("  검사하지 않았거나 발견되지 않음")
     for index, group in enumerate(result.duplicate_groups, start=1):
         lines.append(
-            f"  {index}) 파일당 {format_bytes(group.size_each)} · "
+            f"  {index}) 파일당 논리 크기 "
+            f"{format_bytes(group.logical_size_each)} · "
             f"최대 {format_bytes(group.reclaimable_bytes)} 절약"
         )
         lines.extend(f"     {path}" for path in group.paths)

@@ -58,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="중복 검사 최소 크기(MB, 기본 10)",
     )
     parser.add_argument(
+        "--include-cloud",
+        action="store_true",
+        help="iCloud Drive와 CloudStorage 루트도 포함합니다. 기본값은 제외입니다.",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="사람용 보고서 대신 JSON을 출력합니다.",
@@ -76,6 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         top=args.top,
         find_duplicates=args.duplicates,
         duplicate_min_bytes=args.duplicate_min_mb * 1024 * 1024,
+        include_cloud_storage=args.include_cloud,
     )
     try:
         result = scan(options)
