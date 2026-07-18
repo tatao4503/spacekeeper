@@ -55,16 +55,23 @@ async function api(path, opts) {
   if (!res.ok) throw new Error(data.error || "요청에 실패했어요");
   return data;
 }
-async function reclaimIds(ids, btn, label) {
+async function reclaimIds(ids, btn, label, selectedBytes = 0) {
   if (!ids.length) return null;
+  const sizeText = selectedBytes ? ` (${fmtBytes(selectedBytes)})` : "";
+  if (!confirm(
+    `${ids.length}개 항목${sizeText}을 격리함으로 옮길까요?\n\n` +
+    "원래 자리에서는 사라지지만 같은 디스크의 격리함에 보관되므로 " +
+    "저장공간은 즉시 늘지 않습니다."
+  )) return null;
   if (btn) { btn.disabled = true; btn.textContent = "이동하는 중…"; }
   try {
     const out = await api("/api/reclaim", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action_ids: ids }),
+      body: JSON.stringify({ action_ids: ids, confirmed: true }),
     });
-    let msg = `${out.moved_count}개 항목을 격리함으로 옮겼어요 · ${fmtBytes(out.freed_bytes)} 확보`;
+    let msg = `${out.moved_count}개 항목을 격리함으로 옮겼어요 · ` +
+      `${fmtBytes(out.quarantined_bytes)} 격리`;
     if (out.skipped_count) msg += ` · ${out.skipped_count}개 건너뜀`;
     toast(msg, "ok");
     return out;
@@ -156,7 +163,7 @@ function renderCategory(cat, entries) {
   el.className = "card";
   const rows = entries.map((e) => `
     <label class="entry">
-      <input type="checkbox" data-id="${e.action_id}" ${e.risk === "low" ? "checked" : ""} />
+      <input type="checkbox" data-id="${e.action_id}" />
       <span class="entry-main">
         <span class="entry-path" title="${escapeHtml(e.path)}">${escapeHtml(e.path)}</span>
         <span class="entry-reason">${escapeHtml(e.reason)}</span>
@@ -348,6 +355,24 @@ function updateAppsSelection() {
   document.getElementById("apps-selection").textContent = `${selApps.size}개 항목 선택`;
 }
 
+function bytesForIds(ids) {
+  const wanted = new Set(ids);
+  const sizes = new Map();
+  for (const entry of lastScan?.entries || []) {
+    sizes.set(entry.action_id, entry.allocated_bytes || 0);
+  }
+  for (const group of lastScan?.duplicates || []) {
+    for (const file of group.files) sizes.set(file.action_id, group.each_bytes || 0);
+  }
+  for (const app of lastApps?.apps || []) {
+    sizes.set(app.app_action_id, app.app_bytes || 0);
+    for (const file of app.leftovers) {
+      sizes.set(file.action_id, file.allocated_bytes || 0);
+    }
+  }
+  return [...wanted].reduce((total, id) => total + (sizes.get(id) || 0), 0);
+}
+
 /* ---------- quarantine ---------- */
 async function loadQuarantine() {
   const list = document.getElementById("quarantine-list");
@@ -389,10 +414,13 @@ async function loadQuarantine() {
 }
 
 async function emptyQuarantine() {
-  if (!confirm("격리된 항목을 macOS 휴지통으로 옮길게요. 계속할까요?")) return;
+  if (!confirm(
+    "격리된 항목을 macOS 휴지통으로 옮길까요?\n\n" +
+    "Finder에서 휴지통을 비워야 실제 저장공간이 늘어납니다."
+  )) return;
   try {
     const out = await api("/api/empty", { method: "POST" });
-    toast(`${out.count}개를 휴지통으로 옮겼어요.`, "ok");
+    toast(`${out.count}개를 휴지통으로 옮겼어요. Finder에서 비워야 공간이 확보돼요.`, "ok");
     loadQuarantine();
   } catch (e) { toast(e.message, "err"); }
 }
@@ -416,7 +444,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("scan-btn-2").addEventListener("click", runScan);
 
   document.getElementById("reclaim-btn").addEventListener("click", async (e) => {
-    const out = await reclaimIds([...selDash], e.target, "격리함으로 이동");
+    const ids = [...selDash];
+    const out = await reclaimIds(ids, e.target, "격리함으로 이동", bytesForIds(ids));
     if (out) { selDash.clear(); await runScan(); }
   });
   document.getElementById("clear-sel").addEventListener("click", () => {
@@ -426,13 +455,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("dup-reclaim").addEventListener("click", async (e) => {
-    const out = await reclaimIds([...selDup], e.target, "격리함으로 이동");
+    const ids = [...selDup];
+    const out = await reclaimIds(ids, e.target, "격리함으로 이동", bytesForIds(ids));
     if (out) await runScan();
   });
 
   document.getElementById("apps-scan").addEventListener("click", loadApps);
   document.getElementById("apps-reclaim").addEventListener("click", async (e) => {
-    const out = await reclaimIds([...selApps], e.target, "격리함으로 이동");
+    const ids = [...selApps];
+    const out = await reclaimIds(ids, e.target, "격리함으로 이동", bytesForIds(ids));
     if (out) await loadApps();
   });
 

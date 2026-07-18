@@ -43,7 +43,9 @@ class EngineTests(unittest.TestCase):
 
         self.assertEqual(len(outcome.moved), 1)
         self.assertFalse(target.exists())
-        self.assertGreater(outcome.freed_bytes, 0)
+        self.assertGreater(outcome.quarantined_bytes, 0)
+        self.assertEqual(outcome.to_dict()["disk_space_freed_bytes"], 0)
+        self.assertNotIn("freed_bytes", outcome.to_dict())
         self.assertEqual(len(engine.list_quarantine()), 1)
 
         restored = engine.restore("F-abc")

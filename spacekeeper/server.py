@@ -252,6 +252,12 @@ class _Handler(BaseHTTPRequestHandler):
             return
 
         if route.path == "/api/reclaim":
+            if body.get("confirmed") is not True:
+                self._send_json(
+                    {"error": "화면에서 정리 대상을 확인한 뒤 다시 시도하세요."},
+                    status=400,
+                )
+                return
             action_ids = [str(a) for a in body.get("action_ids", [])]
             items = self.state.resolve(action_ids)
             if not items:

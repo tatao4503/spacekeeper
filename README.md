@@ -64,8 +64,10 @@ python3 -m spacekeeper --serve --port 9000
 - **응용 프로그램** — 앱과, 그 앱이 `~/Library`에 남긴 지원·캐시·설정 파일을 묶어서 보여줍니다.
 - **격리함** — 이동한 항목을 원래 자리로 **되돌리거나** macOS 휴지통으로 **비웁니다**.
 
-"정리"는 파일을 삭제하지 않고 `~/.spacekeeper/quarantine/`로 **이동**하며, manifest에
-원래 위치를 기록해 언제든 복구할 수 있습니다. 이동 대상은 홈 폴더와 `/Applications`
+"격리"는 파일을 삭제하지 않고 `~/.spacekeeper/quarantine/`로 **이동**하며, manifest에
+원래 위치를 기록해 언제든 복구할 수 있습니다. 같은 디스크 안으로 옮기므로 이 단계에서는
+실제 여유 공간이 늘지 않습니다. 격리함을 macOS 휴지통으로 비운 뒤 Finder에서 휴지통을 비워야
+저장공간이 확보됩니다. 이동 대상은 홈 폴더와 `/Applications`
 안으로 제한하고, 시스템·보호 경로(`/System`, `/Library`, `~/.ssh`, Keychains 등)는
 절대 건드리지 않습니다.
 

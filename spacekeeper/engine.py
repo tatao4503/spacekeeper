@@ -147,14 +147,15 @@ class ReclaimOutcome:
     skipped: list[dict[str, str]]
 
     @property
-    def freed_bytes(self) -> int:
+    def quarantined_bytes(self) -> int:
         return sum(record.allocated_bytes for record in self.moved)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "moved": [record.to_dict() for record in self.moved],
             "skipped": self.skipped,
-            "freed_bytes": self.freed_bytes,
+            "quarantined_bytes": self.quarantined_bytes,
+            "disk_space_freed_bytes": 0,
             "moved_count": len(self.moved),
             "skipped_count": len(self.skipped),
         }
