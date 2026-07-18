@@ -97,6 +97,91 @@ class ServerSafetyTests(unittest.TestCase):
         self.assertEqual(payload["disk_space_freed_bytes"], 0)
         self.assertFalse(self.target.exists())
 
+    def test_reveal_opens_only_registered_existing_path_in_finder(self) -> None:
+        with (
+            mock.patch.object(server.sys, "platform", "darwin"),
+            mock.patch.object(server.subprocess, "run") as run,
+        ):
+            status, payload = self._post(
+                {"action_id": "C-test", "scope": "visible"},
+                path="/api/reveal",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["revealed"])
+        run.assert_called_once_with(
+            ["open", "-R", str(self.target)],
+            check=True,
+            stdout=server.subprocess.DEVNULL,
+            stderr=server.subprocess.PIPE,
+            text=True,
+            timeout=server._REVEAL_TIMEOUT_SECONDS,
+        )
+
+    def test_reveal_rejects_unregistered_action_id(self) -> None:
+        with mock.patch.object(server.subprocess, "run") as run:
+            status, payload = self._post(
+                {"action_id": "C-missing", "scope": "visible"},
+                path="/api/reveal",
+            )
+
+        self.assertEqual(status, 400)
+        self.assertIn("현재 화면", payload["error"])
+        run.assert_not_called()
+
+    def test_reveal_rejects_path_that_no_longer_exists(self) -> None:
+        (self.target / "file.bin").unlink()
+        self.target.rmdir()
+        with (
+            mock.patch.object(server.sys, "platform", "darwin"),
+            mock.patch.object(server.subprocess, "run") as run,
+        ):
+            status, payload = self._post(
+                {"action_id": "C-test", "scope": "visible"},
+                path="/api/reveal",
+            )
+
+        self.assertEqual(status, 400)
+        self.assertIn("사라져", payload["error"])
+        run.assert_not_called()
+
+    def test_reveal_current_quarantine_instance_uses_stored_path(self) -> None:
+        self._post({"action_ids": ["C-test"], "confirmed": True})
+        current = engine.list_quarantine()[0]
+        with (
+            mock.patch.object(server.sys, "platform", "darwin"),
+            mock.patch.object(server.subprocess, "run") as run,
+        ):
+            status, payload = self._post(
+                {
+                    "action_id": current.action_id,
+                    "instance_token": current.instance_token,
+                    "scope": "quarantine",
+                },
+                path="/api/reveal",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["revealed"])
+        self.assertEqual(run.call_args.args[0], ["open", "-R", current.stored_path])
+
+    def test_reveal_rejects_stale_quarantine_instance(self) -> None:
+        self._post({"action_ids": ["C-test"], "confirmed": True})
+        current = engine.list_quarantine()[0]
+        with mock.patch.object(server.subprocess, "run") as run:
+            status, payload = self._post(
+                {
+                    "action_id": current.action_id,
+                    "instance_token": "stale-token",
+                    "scope": "quarantine",
+                },
+                path="/api/reveal",
+            )
+
+        self.assertEqual(status, 409)
+        self.assertIn("새로고침", payload["error"])
+        run.assert_not_called()
+
     def test_scan_payload_honors_excluded_paths(self) -> None:
         payload = server._scan_payload(
             {"paths": [str(self.root)], "exclude": [str(self.target)]}

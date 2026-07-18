@@ -58,6 +58,53 @@ async function api(path, opts) {
   if (!res.ok) throw new Error(data.error || "요청에 실패했어요");
   return data;
 }
+function finderRevealButton(
+  actionId,
+  label,
+  scope = "visible",
+  instanceToken = "",
+) {
+  const tokenAttribute = instanceToken
+    ? ` data-reveal-token="${escapeHtml(instanceToken)}"`
+    : "";
+  return `
+    <button class="entry-reveal" type="button"
+      data-reveal="${escapeHtml(actionId)}"
+      data-reveal-scope="${scope}"${tokenAttribute}
+      title="Finder에서 보기: ${escapeHtml(label)}"
+      aria-label="Finder에서 보기: ${escapeHtml(label)}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h6l1.5 2H20v9.5H4z" /><path d="M4 7.5V5h6l1.5 2H20v2.5" /></svg>
+      <span>Finder에서 보기</span>
+    </button>`;
+}
+function wireRevealButtons(root) {
+  root.querySelectorAll("[data-reveal]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      button.classList.add("busy");
+      try {
+        const body = {
+          action_id: button.dataset.reveal,
+          scope: button.dataset.revealScope,
+        };
+        if (button.dataset.revealToken) {
+          body.instance_token = button.dataset.revealToken;
+        }
+        await api("/api/reveal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        toast("Finder에서 항목 위치를 표시했습니다.", "ok");
+      } catch (e) {
+        toast(e.message, "err");
+      } finally {
+        button.disabled = false;
+        button.classList.remove("busy");
+      }
+    });
+  });
+}
 function exportLastScan() {
   if (!lastScan) return;
   const now = new Date();
@@ -245,14 +292,17 @@ function renderCategory(cat, entries) {
   const el = document.createElement("div");
   el.className = "card";
   const rows = entries.map((e) => `
-    <label class="entry">
-      <input type="checkbox" data-id="${e.action_id}" ${selDash.has(e.action_id) ? "checked" : ""} />
-      <span class="entry-main">
-        <span class="entry-path" title="${escapeHtml(e.path)}">${escapeHtml(e.path)}</span>
-        <span class="entry-reason">${escapeHtml(e.reason)}</span>
-      </span>
+    <div class="entry">
+      <label class="entry-select">
+        <input type="checkbox" data-id="${e.action_id}" ${selDash.has(e.action_id) ? "checked" : ""} />
+        <span class="entry-main">
+          <span class="entry-path" title="${escapeHtml(e.path)}">${escapeHtml(e.path)}</span>
+          <span class="entry-reason">${escapeHtml(e.reason)}</span>
+        </span>
+      </label>
+      ${finderRevealButton(e.action_id, e.name || e.path)}
       <span class="entry-size">${e.allocated_human}</span>
-    </label>`).join("");
+    </div>`).join("");
   el.innerHTML = `
     <div class="cat-head">
       <span class="cat-icon">${meta.icon}</span>
@@ -284,6 +334,7 @@ function renderCategory(cat, entries) {
     });
     updateDashSelection();
   });
+  wireRevealButtons(el);
   return el;
 }
 
@@ -329,13 +380,16 @@ function renderDuplicates() {
     const el = document.createElement("div");
     el.className = "card dup-group";
     const rows = group.files.map((f) => `
-      <label class="entry">
-        <input type="checkbox" data-id="${f.action_id}" ${f.keep ? "" : "checked"} />
-        <span class="entry-main">
-          <span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.path)}</span>
-          ${f.keep ? `<span class="entry-reason dup-keep">기본 보관</span>` : ""}
-        </span>
-      </label>`).join("");
+      <div class="entry">
+        <label class="entry-select">
+          <input type="checkbox" data-id="${f.action_id}" ${f.keep ? "" : "checked"} />
+          <span class="entry-main">
+            <span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.path)}</span>
+            ${f.keep ? `<span class="entry-reason dup-keep">기본 보관</span>` : ""}
+          </span>
+        </label>
+        ${finderRevealButton(f.action_id, f.name || f.path)}
+      </div>`).join("");
     el.innerHTML = `
       <div class="dup-group-head"><b>${group.each_human}</b> 파일 ${group.files.length}개 · ${group.reclaimable_human} 정리 가능</div>
       ${rows}`;
@@ -346,6 +400,7 @@ function renderDuplicates() {
         updateDupSelection();
       });
     });
+    wireRevealButtons(el);
     list.appendChild(el);
   }
   updateDupSelection();
@@ -382,12 +437,15 @@ function renderApps(data) {
     el.className = "card";
     const initial = escapeHtml(app.name.slice(0, 1).toUpperCase());
     const leftoverRows = app.leftovers.map((f) => `
-      <label class="entry">
-        <input type="checkbox" data-id="${f.action_id}" data-app="${app.app_action_id}" />
-        <span class="entry-main"><span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.path)}</span>
-          <span class="entry-reason">잔여 파일</span></span>
+      <div class="entry">
+        <label class="entry-select">
+          <input type="checkbox" data-id="${f.action_id}" data-app="${app.app_action_id}" />
+          <span class="entry-main"><span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.path)}</span>
+            <span class="entry-reason">잔여 파일</span></span>
+        </label>
+        ${finderRevealButton(f.action_id, f.name || f.path)}
         <span class="entry-size">${f.allocated_human}</span>
-      </label>`).join("");
+      </div>`).join("");
     el.innerHTML = `
       <div class="app-head">
         <div class="app-icon">${initial}</div>
@@ -397,12 +455,15 @@ function renderApps(data) {
       </div>
       <div class="cat-body">
         <div class="cat-selectall"><label class="chk"><input type="checkbox" class="app-all" data-app="${app.app_action_id}" /> 앱과 잔여 파일 모두 선택</label></div>
-        <label class="entry">
-          <input type="checkbox" data-id="${app.app_action_id}" data-app="${app.app_action_id}" />
-          <span class="entry-main"><span class="entry-path">${escapeHtml(app.path)}</span>
-            <span class="entry-reason">응용 프로그램 본체</span></span>
+        <div class="entry">
+          <label class="entry-select">
+            <input type="checkbox" data-id="${app.app_action_id}" data-app="${app.app_action_id}" />
+            <span class="entry-main"><span class="entry-path">${escapeHtml(app.path)}</span>
+              <span class="entry-reason">응용 프로그램 본체</span></span>
+          </label>
+          ${finderRevealButton(app.app_action_id, app.name)}
           <span class="entry-size">${app.app_human}</span>
-        </label>
+        </div>
         ${leftoverRows}
       </div>`;
     el.querySelector(".app-head").addEventListener("click", (ev) => {
@@ -424,6 +485,7 @@ function renderApps(data) {
       });
       updateAppsSelection();
     });
+    wireRevealButtons(el);
     list.appendChild(el);
   }
   updateAppsSelection();
@@ -512,6 +574,12 @@ function renderQuarantine() {
         <span class="entry-path" title="${escapeHtml(item.original_path)}">${escapeHtml(item.original_path)}</span>
         <span class="entry-reason">${fmtBytes(item.allocated_bytes)} · ${formatQuarantinedAt(item.quarantined_at)}</span>
       </span>
+      ${finderRevealButton(
+        item.action_id,
+        item.original_path,
+        "quarantine",
+        item.instance_token,
+      )}
       <button class="btn ghost small" data-restore="${actionId}">원래 위치로</button>`;
     el.querySelector("[data-q-id]").addEventListener("change", (event) => {
       event.target.checked ? selQ.add(item.action_id) : selQ.delete(item.action_id);
@@ -535,6 +603,7 @@ function renderQuarantine() {
         event.target.disabled = false;
       }
     });
+    wireRevealButtons(el);
     list.appendChild(el);
   }
   updateQSelection();

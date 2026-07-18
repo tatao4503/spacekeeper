@@ -8,6 +8,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -23,6 +26,7 @@ from .scanner import scan
 STATIC_DIR = Path(__file__).parent / "web"
 _PLAN_LIMIT = 500
 _EMPTY_LIMIT = 10_000
+_REVEAL_TIMEOUT_SECONDS = 5
 
 
 class _State:
@@ -224,6 +228,33 @@ def _empty_selections(body: dict) -> dict[str, str]:
     return selections
 
 
+def _reveal_in_finder(path: str) -> None:
+    """Ask Finder to select an existing path without invoking a shell."""
+
+    if sys.platform != "darwin":
+        raise RuntimeError("Finder에서 보기는 macOS에서만 사용할 수 있습니다.")
+    if not os.path.lexists(path):
+        raise FileNotFoundError("파일이 이동되었거나 사라져 위치를 열 수 없습니다.")
+    subprocess.run(
+        ["open", "-R", path],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=_REVEAL_TIMEOUT_SECONDS,
+    )
+
+
+def _quarantine_path_for_reveal(action_id: str, instance_token: str) -> str:
+    records = engine.list_quarantine()
+    record = next((item for item in records if item.action_id == action_id), None)
+    if record is None or record.instance_token != instance_token:
+        raise engine.StaleSelectionError(
+            "격리함이 변경되었습니다. 새로고침 후 다시 확인하세요."
+        )
+    return record.stored_path
+
+
 class _Handler(BaseHTTPRequestHandler):
     state: _State
 
@@ -302,7 +333,60 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json({"error": f"잘못된 요청 본문: {exc}"}, status=400)
             return
 
-        if route.path == "/api/reclaim":
+        if route.path == "/api/reveal":
+            action_id = body.get("action_id")
+            scope = body.get("scope")
+            if not isinstance(action_id, str) or not action_id:
+                self._send_json(
+                    {"error": "Finder에서 확인할 항목 식별자가 필요합니다."},
+                    status=400,
+                )
+                return
+            try:
+                if scope == "visible":
+                    items = self.state.resolve([action_id])
+                    if len(items) != 1:
+                        self._send_json(
+                            {"error": "현재 화면에서 확인할 수 없는 항목입니다."},
+                            status=400,
+                        )
+                        return
+                    reveal_path = items[0][1]
+                elif scope == "quarantine":
+                    instance_token = body.get("instance_token")
+                    if not isinstance(instance_token, str) or not instance_token:
+                        self._send_json(
+                            {"error": "격리 항목 식별 정보가 필요합니다."},
+                            status=400,
+                        )
+                        return
+                    reveal_path = _quarantine_path_for_reveal(
+                        action_id, instance_token
+                    )
+                else:
+                    self._send_json(
+                        {"error": "Finder에서 확인할 항목 범위가 올바르지 않습니다."},
+                        status=400,
+                    )
+                    return
+                _reveal_in_finder(reveal_path)
+            except engine.StaleSelectionError as exc:
+                self._send_json({"error": str(exc)}, status=409)
+                return
+            except (FileNotFoundError, RuntimeError) as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            except (
+                OSError,
+                subprocess.SubprocessError,
+            ) as exc:
+                self._send_json(
+                    {"error": f"Finder에서 위치를 여는 중 오류가 발생했습니다: {exc}"},
+                    status=500,
+                )
+                return
+            self._send_json({"revealed": True, "action_id": action_id})
+        elif route.path == "/api/reclaim":
             if body.get("confirmed") is not True:
                 self._send_json(
                     {"error": "화면에서 정리 대상을 확인한 뒤 다시 시도하세요."},

@@ -406,10 +406,23 @@ body {
 }
 .entry:first-child { border-top: none; }
 .entry input[type=checkbox], .cat-all { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent); }
+.entry-select { display: flex; align-items: center; gap: 13px; flex: 1; min-width: 0; cursor: pointer; }
 .entry-main { flex: 1; min-width: 0; }
-.entry-path { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.entry-reason { color: var(--faint); font-size: 11.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entry-path { display: block; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.entry-reason { display: block; color: var(--faint); font-size: 11.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .entry-size { color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.entry-reveal {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+  border: 1px solid transparent; border-radius: 8px; padding: 5px 8px;
+  background: transparent; color: var(--muted); font: inherit; font-size: 11.5px;
+  cursor: pointer; transition: color 0.14s, background 0.14s, border-color 0.14s, opacity 0.14s;
+}
+.entry-reveal svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.entry-reveal:hover { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line); }
+.entry-reveal:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.entry-reveal:disabled { opacity: 0.48; cursor: wait; }
+.entry-reveal.busy svg { animation: pulse 0.8s ease-in-out infinite alternate; }
+@keyframes pulse { to { opacity: 0.35; } }
 .cat-selectall {
   padding: 11px 22px; font-size: 12.5px; color: var(--muted);
   border-top: 1px solid var(--line); background: var(--panel-2);
@@ -499,6 +512,8 @@ body {
   .cat-head, .entry { padding-left: 15px; padding-right: 15px; }
   .cat-size { gap: 6px; }
   .badge { display: none; }
+  .entry-reveal span { display: none; }
+  .entry-reveal { padding: 6px; }
 }
 
 /* Toast */
