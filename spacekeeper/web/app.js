@@ -59,14 +59,34 @@ function toast(msg, kind) {
   const el = document.getElementById("toast");
   el.textContent = msg;
   el.className = "toast" + (kind ? " " + kind : "");
+  el.setAttribute("role", kind === "err" ? "alert" : "status");
+  el.setAttribute("aria-live", kind === "err" ? "assertive" : "polite");
   el.hidden = false;
   clearTimeout(toast._t);
   toast._t = setTimeout(() => (el.hidden = true), 3600);
 }
+
+function syncGroupCheckbox(root, allSelector, itemSelector = "input[data-id]") {
+  const all = root.querySelector(allSelector);
+  const boxes = [...root.querySelectorAll(itemSelector)].filter((box) => !box.disabled);
+  if (!all || !boxes.length) return;
+  const checked = boxes.filter((box) => box.checked).length;
+  all.checked = checked === boxes.length;
+  all.indeterminate = checked > 0 && checked < boxes.length;
+}
+
+function wireDisclosure(card, selector) {
+  const trigger = card.querySelector(selector);
+  if (!trigger) return;
+  trigger.addEventListener("click", () => {
+    card.classList.toggle("open");
+    trigger.setAttribute("aria-expanded", String(card.classList.contains("open")));
+  });
+}
 async function api(path, opts) {
   const res = await fetch(path, opts);
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "요청에 실패했어요");
+  if (!res.ok) throw new Error(data.error || "요청을 처리하지 못했습니다");
   return data;
 }
 function finderRevealButton(
@@ -152,7 +172,7 @@ async function reclaimIds(ids, btn, label, selectedBytes = 0) {
   if (!confirm(
     `선택한 ${ids.length}개 항목${sizeText}을 격리할까요?\n\n` +
     "원래 위치에서 Spacekeeper 격리함으로 옮겨집니다. " +
-    "이 단계에서는 저장공간이 늘지 않으며 언제든 복원할 수 있습니다."
+    "이 단계에서는 저장 공간이 늘지 않으며 언제든 복원할 수 있습니다."
   )) return null;
   if (btn) { btn.disabled = true; btn.textContent = "안전하게 격리하는 중…"; }
   try {
@@ -207,9 +227,9 @@ function setScanControlsBusy(busy) {
 
 function resetScanProgress(targetLabel) {
   document.getElementById("scanning-text").textContent =
-    `${targetLabel}의 저장공간을 분석하는 중…`;
+    `${targetLabel} 저장 공간을 분석하는 중…`;
   document.getElementById("scan-progress-meta").textContent =
-    "파일을 찾는 중이에요.";
+    "파일을 살펴보는 중이에요.";
   document.getElementById("scan-current-path").textContent =
     "분석할 경로를 준비하고 있어요.";
   document.getElementById("scan-phase-note").textContent =
@@ -245,7 +265,7 @@ function updateScanProgress(job, targetLabel) {
     title.textContent = "분석 결과를 정리하는 중…";
     note.textContent = "정리 후보와 주의도를 마지막으로 확인하고 있어요.";
   } else {
-    title.textContent = `${targetLabel}의 저장공간을 분석하는 중…`;
+    title.textContent = `${targetLabel} 저장 공간을 분석하는 중…`;
     note.textContent = "분석은 파일을 변경하지 않아요.";
   }
 
@@ -332,11 +352,11 @@ async function runScan() {
     const finished = await waitForScan(started.job_id, targetLabel);
     if (!finished) return;
     if (finished.status === "cancelled") {
-      toast("분석을 취소했습니다. 파일은 변경되지 않았어요.", "ok");
+      toast("분석을 취소했습니다. 파일은 변경되지 않았습니다.", "ok");
       return;
     }
     if (finished.status === "failed") {
-      throw new Error(finished.error || "분석을 완료하지 못했어요.");
+      throw new Error(finished.error || "분석을 완료하지 못했습니다.");
     }
     const data = finished.result;
     lastScan = data;
@@ -402,6 +422,27 @@ function renderResults(data) {
   renderFilteredResults();
 }
 
+function selectLowRisk() {
+  if (!lastScan) return;
+  const low = lastScan.entries.filter((e) => e.risk === "low");
+  if (!low.length) {
+    toast("선택할 낮은 위험 항목이 없습니다.", "err");
+    return;
+  }
+  const added = low.filter((entry) => !selDash.has(entry.action_id));
+  for (const entry of low) selDash.add(entry.action_id);
+  renderFilteredResults();
+  const actions = document.getElementById("actions-bar");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  actions.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest" });
+  toast(
+    added.length
+      ? `낮은 위험 ${added.length}개를 선택했습니다. 목록을 확인한 뒤 격리하세요.`
+      : "낮은 위험 항목이 이미 모두 선택되어 있습니다.",
+    "ok",
+  );
+}
+
 function renderFilteredResults() {
   if (!lastScan) return;
   const query = document.getElementById("result-search").value.trim().toLocaleLowerCase("ko-KR");
@@ -416,7 +457,18 @@ function renderFilteredResults() {
 
   const groups = {};
   for (const entry of filtered) (groups[entry.category] ||= []).push(entry);
-  const order = Object.keys(groups).sort((a, b) => sumBytes(groups[b]) - sumBytes(groups[a]));
+  const sortMode = document.getElementById("result-sort")?.value || "size";
+  const riskRank = { high: 0, medium: 1, low: 2 };
+  const order = Object.keys(groups);
+  if (sortMode === "name") {
+    order.sort((a, b) => catMeta(a).label.localeCompare(catMeta(b).label, "ko-KR"));
+  } else if (sortMode === "risk") {
+    order.sort((a, b) =>
+      (riskRank[groups[a][0].risk] - riskRank[groups[b][0].risk]) ||
+      (sumBytes(groups[b]) - sumBytes(groups[a])));
+  } else {
+    order.sort((a, b) => sumBytes(groups[b]) - sumBytes(groups[a]));
+  }
 
   const list = document.getElementById("category-list");
   list.innerHTML = "";
@@ -433,15 +485,20 @@ function renderFilteredResults() {
   if (!filtered.length) {
     list.innerHTML = `<div class="q-empty">현재 검색과 필터 조건에 맞는 항목이 없습니다.</div>`;
   }
-  for (const cat of order) list.appendChild(renderCategory(cat, groups[cat]));
+  const maxCat = Math.max(1, ...order.map((cat) => sumBytes(groups[cat])));
+  for (const cat of order) list.appendChild(renderCategory(cat, groups[cat], maxCat));
   updateDashSelection();
 }
 
-function renderCategory(cat, entries) {
+function renderCategory(cat, entries, maxCat = 1) {
   const meta = catMeta(cat);
   const risk = entries[0].risk;
+  const catBytes = sumBytes(entries);
+  const pct = Math.max(7, Math.round((catBytes / maxCat) * 100));
+  const bodyId = `cat-body-${cat.replace(/[^a-z0-9_-]/gi, "-")}`;
   const el = document.createElement("div");
   el.className = "card";
+  el.dataset.cat = cat;
   const rows = entries.map((e) => `
     <div class="entry">
       <label class="entry-select">
@@ -455,20 +512,19 @@ function renderCategory(cat, entries) {
       <span class="entry-size">${e.allocated_human}</span>
     </div>`).join("");
   el.innerHTML = `
-    <div class="cat-head">
-      <span class="cat-icon">${meta.icon}</span>
-      <div><div class="cat-title">${meta.label}</div><div class="cat-sub">${entries.length}개 항목을 확인하세요</div></div>
-      <div class="cat-size"><b>${fmtBytes(sumBytes(entries))}</b><span class="badge ${risk}">${RISK_LABEL[risk]}</span><span class="cat-caret">›</span></div>
-    </div>
-    <div class="cat-body">
+    <button type="button" class="cat-head" aria-expanded="${risk === "low"}" aria-controls="${bodyId}"
+      aria-label="${escapeHtml(meta.label)} · ${entries.length}개 · ${fmtBytes(catBytes)} · ${RISK_LABEL[risk]}">
+      <span class="cat-icon" aria-hidden="true">${meta.icon}</span>
+      <span class="cat-labels"><span class="cat-title">${meta.label}</span><span class="cat-sub">${entries.length}개 항목을 확인하세요</span></span>
+      <span class="cat-track" aria-hidden="true"><span style="width:${pct}%"></span></span>
+      <span class="cat-size"><b>${fmtBytes(catBytes)}</b><span class="badge ${risk}">${RISK_LABEL[risk]}</span><span class="cat-caret">›</span></span>
+    </button>
+    <div class="cat-body" id="${bodyId}">
       <div class="cat-selectall"><label class="chk"><input type="checkbox" class="cat-all" /> 이 그룹 모두 선택</label></div>
       ${rows}
     </div>`;
   if (risk === "low") el.classList.add("open");
-  el.querySelector(".cat-head").addEventListener("click", (ev) => {
-    if (ev.target.closest("input")) return;
-    el.classList.toggle("open");
-  });
+  wireDisclosure(el, ".cat-head");
   el.querySelectorAll("input[data-id]").forEach((cb) => {
     if (cb.checked) selDash.add(cb.dataset.id);
     cb.addEventListener("change", () => {
@@ -477,8 +533,9 @@ function renderCategory(cat, entries) {
     });
   });
   const all = el.querySelector(".cat-all");
-  all.checked = entries.every((e) => selDash.has(e.action_id));
+  syncGroupCheckbox(el, ".cat-all");
   all.addEventListener("change", () => {
+    all.indeterminate = false;
     el.querySelectorAll("input[data-id]").forEach((cb) => {
       cb.checked = all.checked;
       cb.checked ? selDash.add(cb.dataset.id) : selDash.delete(cb.dataset.id);
@@ -498,9 +555,7 @@ function updateDashSelection() {
     `${chosen.length}개 · ${fmtBytes(sumBytes(chosen))} 선택` +
     (hidden.length ? ` · 현재 숨겨진 항목 ${hidden.length}개 포함` : "");
   document.querySelectorAll("#category-list .card").forEach((card) => {
-    const boxes = card.querySelectorAll("input[data-id]");
-    const all = card.querySelector(".cat-all");
-    if (all && boxes.length) all.checked = [...boxes].every((b) => b.checked);
+    syncGroupCheckbox(card, ".cat-all");
   });
 }
 
@@ -533,23 +588,35 @@ function renderDuplicates() {
     const rows = group.files.map((f) => `
       <div class="entry">
         <label class="entry-select">
-          <input type="checkbox" data-id="${f.action_id}" ${f.keep ? "" : "checked"} />
+          <input type="checkbox" data-id="${f.action_id}" ${f.keep ? "disabled" : ""} />
           <span class="entry-main">
             <span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.path)}</span>
-            ${f.keep ? `<span class="entry-reason dup-keep">기본 보관</span>` : ""}
+            ${f.keep ? `<span class="entry-reason dup-keep">기본 보관 · 이 화면에서는 선택할 수 없어요</span>` : `<span class="entry-reason">내용이 같은 중복본</span>`}
           </span>
         </label>
         ${finderRevealButton(f.action_id, f.name || f.path)}
       </div>`).join("");
     el.innerHTML = `
-      <div class="dup-group-head"><b>${group.each_human}</b> 파일 ${group.files.length}개 · ${group.reclaimable_human} 정리 가능</div>
+      <div class="dup-group-head">
+        <span><b>${group.each_human}</b> 파일 ${group.files.length}개 · ${group.reclaimable_human} 정리 가능</span>
+        <label class="chk"><input type="checkbox" class="dup-all" /> 보관본 제외 모두 선택</label>
+      </div>
       ${rows}`;
     el.querySelectorAll("input[data-id]").forEach((cb) => {
-      if (cb.checked) selDup.add(cb.dataset.id);
       cb.addEventListener("change", () => {
         cb.checked ? selDup.add(cb.dataset.id) : selDup.delete(cb.dataset.id);
+        syncGroupCheckbox(el, ".dup-all");
         updateDupSelection();
       });
+    });
+    const dupAll = el.querySelector(".dup-all");
+    dupAll.addEventListener("change", () => {
+      el.querySelectorAll("input[data-id]:not(:disabled)").forEach((cb) => {
+        cb.checked = dupAll.checked;
+        cb.checked ? selDup.add(cb.dataset.id) : selDup.delete(cb.dataset.id);
+      });
+      dupAll.indeterminate = false;
+      updateDupSelection();
     });
     wireRevealButtons(el);
     list.appendChild(el);
@@ -559,7 +626,9 @@ function renderDuplicates() {
 
 function updateDupSelection() {
   document.getElementById("dup-actions").hidden = selDup.size === 0;
-  document.getElementById("dup-selection").textContent = `${selDup.size}개 선택`;
+  document.getElementById("dup-selection").textContent = selDup.size
+    ? `${selDup.size}개 · ${fmtBytes(bytesForIds([...selDup]))} 선택`
+    : "선택한 항목 없음";
 }
 
 /* ---------- apps ---------- */
@@ -572,6 +641,8 @@ async function loadApps() {
     selApps.clear();
     renderApps(data);
   } catch (e) {
+    selApps.clear();
+    updateAppsSelection();
     list.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
   }
 }
@@ -580,6 +651,7 @@ function renderApps(data) {
   const list = document.getElementById("apps-list");
   list.innerHTML = "";
   if (!data.apps.length) {
+    updateAppsSelection();
     list.innerHTML = `<div class="q-empty">표시할 앱이 없습니다.</div>`;
     return;
   }
@@ -587,6 +659,7 @@ function renderApps(data) {
     const el = document.createElement("div");
     el.className = "card";
     const initial = escapeHtml(app.name.slice(0, 1).toUpperCase());
+    const appBodyId = `app-body-${String(app.app_action_id).replace(/[^a-z0-9_-]/gi, "-")}`;
     const leftoverRows = app.leftovers.map((f) => `
       <div class="entry">
         <label class="entry-select">
@@ -598,13 +671,14 @@ function renderApps(data) {
         <span class="entry-size">${f.allocated_human}</span>
       </div>`).join("");
     el.innerHTML = `
-      <div class="app-head">
-        <div class="app-icon">${initial}</div>
-        <div><div class="app-name">${escapeHtml(app.name)}</div>
-          <div class="app-sub">앱 ${app.app_human} · 잔여 ${app.leftover_human} · ${app.leftovers.length}개 파일</div></div>
-        <div class="cat-size"><b>${app.total_human}</b><span class="cat-caret">›</span></div>
-      </div>
-      <div class="cat-body">
+      <button type="button" class="app-head" aria-expanded="false" aria-controls="${appBodyId}"
+        aria-label="${escapeHtml(app.name)} · 전체 ${app.total_human} · 관련 파일 ${app.leftovers.length}개">
+        <span class="app-icon" aria-hidden="true">${initial}</span>
+        <span><span class="app-name">${escapeHtml(app.name)}</span>
+          <span class="app-sub">앱 ${app.app_human} · 잔여 ${app.leftover_human} · ${app.leftovers.length}개 파일</span></span>
+        <span class="cat-size"><b>${app.total_human}</b><span class="cat-caret">›</span></span>
+      </button>
+      <div class="cat-body" id="${appBodyId}">
         <div class="cat-selectall"><label class="chk"><input type="checkbox" class="app-all" data-app="${app.app_action_id}" /> 앱과 잔여 파일 모두 선택</label></div>
         <div class="entry">
           <label class="entry-select">
@@ -617,10 +691,7 @@ function renderApps(data) {
         </div>
         ${leftoverRows}
       </div>`;
-    el.querySelector(".app-head").addEventListener("click", (ev) => {
-      if (ev.target.closest("input")) return;
-      el.classList.toggle("open");
-    });
+    wireDisclosure(el, ".app-head");
     el.querySelectorAll("input[data-id]").forEach((cb) => {
       cb.addEventListener("change", () => {
         cb.checked ? selApps.add(cb.dataset.id) : selApps.delete(cb.dataset.id);
@@ -630,6 +701,7 @@ function renderApps(data) {
     });
     const appAll = el.querySelector(".app-all");
     appAll.addEventListener("change", () => {
+      appAll.indeterminate = false;
       el.querySelectorAll("input[data-id]").forEach((cb) => {
         cb.checked = appAll.checked;
         cb.checked ? selApps.add(cb.dataset.id) : selApps.delete(cb.dataset.id);
@@ -643,14 +715,14 @@ function renderApps(data) {
 }
 
 function syncAppAll(card) {
-  const boxes = card.querySelectorAll("input[data-id]");
-  const all = card.querySelector(".app-all");
-  if (all && boxes.length) all.checked = [...boxes].every((b) => b.checked);
+  syncGroupCheckbox(card, ".app-all");
 }
 
 function updateAppsSelection() {
   document.getElementById("apps-actions").hidden = selApps.size === 0;
-  document.getElementById("apps-selection").textContent = `${selApps.size}개 항목 선택`;
+  document.getElementById("apps-selection").textContent = selApps.size
+    ? `${selApps.size}개 · ${fmtBytes(bytesForIds([...selApps]))} 선택`
+    : "선택한 항목 없음";
 }
 
 function bytesForIds(ids) {
@@ -719,8 +791,9 @@ function renderQuarantine() {
     const actionId = escapeHtml(item.action_id);
     el.innerHTML = `
       <input class="q-check" type="checkbox" data-q-id="${actionId}"
+        aria-label="격리 항목 선택: ${escapeHtml(item.original_path)}"
         ${selQ.has(item.action_id) ? "checked" : ""} />
-      <span class="cat-icon">↩</span>
+      <span class="cat-icon" aria-hidden="true">↩</span>
       <span class="entry-main">
         <span class="entry-path" title="${escapeHtml(item.original_path)}">${escapeHtml(item.original_path)}</span>
         <span class="entry-reason">${fmtBytes(item.allocated_bytes)} · ${formatQuarantinedAt(item.quarantined_at)}</span>
@@ -731,13 +804,15 @@ function renderQuarantine() {
         "quarantine",
         item.instance_token,
       )}
-      <button class="btn ghost small" data-restore="${actionId}">원래 위치로</button>`;
+      <button class="btn ghost small" type="button" data-restore="${actionId}"
+        aria-label="원래 위치로 복원: ${escapeHtml(item.original_path)}">원래 위치로</button>`;
     el.querySelector("[data-q-id]").addEventListener("change", (event) => {
-      event.target.checked ? selQ.add(item.action_id) : selQ.delete(item.action_id);
+      event.currentTarget.checked ? selQ.add(item.action_id) : selQ.delete(item.action_id);
       updateQSelection();
     });
     el.querySelector("[data-restore]").addEventListener("click", async (event) => {
-      event.target.disabled = true;
+      const button = event.currentTarget;
+      button.disabled = true;
       try {
         await api("/api/restore", {
           method: "POST",
@@ -751,7 +826,7 @@ function renderQuarantine() {
         await loadQuarantine();
       } catch (e) {
         toast(e.message, "err");
-        event.target.disabled = false;
+        button.disabled = false;
       }
     });
     wireRevealButtons(el);
@@ -861,8 +936,8 @@ function diagnosticCard(check) {
 function renderDiagnostics(data) {
   const overview = document.getElementById("diagnostics-overview");
   const overviewCopy = {
-    ready: ["현재 실행 환경이 준비됐어요.", "주요 폴더와 안전 기능을 사용할 수 있습니다."],
-    attention: ["확인할 항목이 있어요.", "폴더 생성 여부나 실행 환경 안내를 확인해주세요."],
+    ready: ["현재 실행 환경이 준비됐습니다.", "주요 폴더와 안전 기능을 사용할 수 있습니다."],
+    attention: ["확인할 항목이 있습니다.", "폴더 생성 여부나 실행 환경 안내를 확인해주세요."],
     blocked: ["권한 또는 환경 조치가 필요해요.", "조치 필요 항목을 확인한 뒤 다시 점검해주세요."],
   }[data.overall_status];
   const checkedAt = new Date(data.checked_at).toLocaleString("ko-KR", {
@@ -872,6 +947,7 @@ function renderDiagnostics(data) {
     minute: "2-digit",
   });
   overview.className = `diagnostics-overview ${data.overall_status}`;
+  overview.setAttribute("aria-busy", "false");
   overview.innerHTML = `
     <div class="diag-overview-icon" aria-hidden="true"></div>
     <div>
@@ -910,6 +986,7 @@ async function loadDiagnostics() {
   refresh.textContent = "점검하는 중…";
   const overview = document.getElementById("diagnostics-overview");
   overview.className = "diagnostics-overview loading";
+  overview.setAttribute("aria-busy", "true");
   overview.innerHTML = `
     <div class="diag-overview-icon" aria-hidden="true"></div>
     <div>
@@ -923,6 +1000,7 @@ async function loadDiagnostics() {
     renderDiagnostics(await api("/api/diagnostics"));
   } catch (e) {
     overview.className = "diagnostics-overview blocked";
+    overview.setAttribute("aria-busy", "false");
     overview.innerHTML = `
       <div class="diag-overview-icon" aria-hidden="true"></div>
       <div><div class="diag-overview-kicker">점검 실패</div>
@@ -971,7 +1049,7 @@ function switchView(view) {
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("preset").addEventListener("change", (e) => {
-    document.getElementById("path-input").disabled = e.target.value !== "custom";
+    document.getElementById("path-input").disabled = e.currentTarget.value !== "custom";
     updateScanCta();
   });
   document.getElementById("path-input").addEventListener("input", updateScanCta);
@@ -982,11 +1060,36 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("cancel-scan").addEventListener("click", cancelScan);
   document.getElementById("result-search").addEventListener("input", renderFilteredResults);
   document.getElementById("risk-filter").addEventListener("change", renderFilteredResults);
+  document.getElementById("result-sort").addEventListener("change", renderFilteredResults);
+  document.getElementById("select-low-risk").addEventListener("click", selectLowRisk);
+
+  const navOrder = ["dashboard", "duplicates", "apps", "quarantine", "diagnostics"];
+  document.addEventListener("keydown", (e) => {
+    const tag = document.activeElement?.tagName;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+      const activeView = document.querySelector(".view.active")?.id;
+      const search = activeView === "view-quarantine"
+        ? document.getElementById("q-search")
+        : activeView === "view-dashboard" && !document.getElementById("results").hidden
+          ? document.getElementById("result-search")
+          : null;
+      if (search && !search.closest("[hidden]")) {
+        e.preventDefault();
+        search.focus();
+        search.select();
+      }
+    } else if ((e.metaKey || e.ctrlKey) && navOrder[Number(e.key) - 1]) {
+      e.preventDefault();
+      switchView(navOrder[Number(e.key) - 1]);
+    } else if (e.key === "Escape" && (tag === "INPUT" || tag === "SELECT")) {
+      document.activeElement.blur();
+    }
+  });
   document.getElementById("export-scan").addEventListener("click", exportLastScan);
 
   document.getElementById("reclaim-btn").addEventListener("click", async (e) => {
     const ids = [...selDash];
-    const out = await reclaimIds(ids, e.target, "선택 항목 격리", bytesForIds(ids));
+    const out = await reclaimIds(ids, e.currentTarget, "선택 항목 격리", bytesForIds(ids));
     if (out) { selDash.clear(); await runScan(); }
   });
   document.getElementById("clear-sel").addEventListener("click", () => {
@@ -996,14 +1099,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("dup-reclaim").addEventListener("click", async (e) => {
     const ids = [...selDup];
-    const out = await reclaimIds(ids, e.target, "선택 파일 격리", bytesForIds(ids));
+    const out = await reclaimIds(ids, e.currentTarget, "선택 파일 격리", bytesForIds(ids));
     if (out) await runScan();
   });
 
   document.getElementById("apps-scan").addEventListener("click", loadApps);
   document.getElementById("apps-reclaim").addEventListener("click", async (e) => {
     const ids = [...selApps];
-    const out = await reclaimIds(ids, e.target, "선택 항목 격리", bytesForIds(ids));
+    const out = await reclaimIds(ids, e.currentTarget, "선택 항목 격리", bytesForIds(ids));
     if (out) await loadApps();
   });
 
@@ -1012,7 +1115,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("q-search").addEventListener("input", renderQuarantine);
   document.getElementById("q-select-all").addEventListener("change", (event) => {
     for (const item of filteredQuarantineItems()) {
-      event.target.checked ? selQ.add(item.action_id) : selQ.delete(item.action_id);
+      event.currentTarget.checked ? selQ.add(item.action_id) : selQ.delete(item.action_id);
     }
     renderQuarantine();
   });
