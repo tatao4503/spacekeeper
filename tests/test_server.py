@@ -14,6 +14,42 @@ from unittest import mock
 from spacekeeper import engine, server
 
 
+class DesktopParentMonitorTests(unittest.TestCase):
+    def test_desktop_parent_pid_ignores_missing_or_invalid_values(self) -> None:
+        with mock.patch.dict(server.os.environ, {}, clear=True):
+            self.assertIsNone(server._desktop_parent_pid())
+        with mock.patch.dict(
+            server.os.environ,
+            {server._DESKTOP_PARENT_ENV: "not-a-pid"},
+            clear=True,
+        ):
+            self.assertIsNone(server._desktop_parent_pid())
+
+    def test_desktop_parent_pid_accepts_positive_process_id(self) -> None:
+        with mock.patch.dict(
+            server.os.environ,
+            {server._DESKTOP_PARENT_ENV: "4321"},
+            clear=True,
+        ):
+            self.assertEqual(server._desktop_parent_pid(), 4321)
+
+    def test_parent_watcher_stops_server_when_parent_disappears(self) -> None:
+        httpd = mock.Mock()
+        stop_event = threading.Event()
+        with mock.patch.object(
+            server,
+            "_parent_process_is_alive",
+            side_effect=[True, False],
+        ):
+            server._watch_desktop_parent(
+                httpd,
+                4321,
+                stop_event,
+                check_interval=0,
+            )
+        httpd.shutdown.assert_called_once_with()
+
+
 class ServerSafetyTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = TemporaryDirectory()

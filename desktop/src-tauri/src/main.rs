@@ -42,6 +42,10 @@ fn spawn_server() -> Option<Child> {
     Command::new("python3")
         .args(["-m", "spacekeeper", "--serve", "--port", "8765"])
         .env("PYTHONPATH", runtime_root())
+        .env(
+            "SPACEKEEPER_DESKTOP_PARENT_PID",
+            std::process::id().to_string(),
+        )
         .current_dir(std::env::temp_dir())
         .spawn()
         .ok()

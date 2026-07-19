@@ -31,6 +31,46 @@ _PLAN_LIMIT = 500
 _EMPTY_LIMIT = 10_000
 _REVEAL_TIMEOUT_SECONDS = 5
 _SETTINGS_TIMEOUT_SECONDS = 5
+_DESKTOP_PARENT_ENV = "SPACEKEEPER_DESKTOP_PARENT_PID"
+_PARENT_CHECK_INTERVAL_SECONDS = 0.5
+
+
+def _desktop_parent_pid() -> int | None:
+    """Return the desktop parent PID when the server was launched by the app."""
+
+    raw_pid = os.environ.get(_DESKTOP_PARENT_ENV, "")
+    try:
+        parent_pid = int(raw_pid)
+    except ValueError:
+        return None
+    return parent_pid if parent_pid > 1 else None
+
+
+def _parent_process_is_alive(parent_pid: int) -> bool:
+    """Check process existence without changing its state."""
+
+    try:
+        os.kill(parent_pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _watch_desktop_parent(
+    server: ThreadingHTTPServer,
+    parent_pid: int,
+    stop_event: threading.Event,
+    *,
+    check_interval: float = _PARENT_CHECK_INTERVAL_SECONDS,
+) -> None:
+    """Stop the local server if its owning desktop process disappears."""
+
+    while not stop_event.wait(check_interval):
+        if not _parent_process_is_alive(parent_pid):
+            server.shutdown()
+            return
 
 
 class _ScanBusyError(RuntimeError):
@@ -733,6 +773,16 @@ class _Handler(BaseHTTPRequestHandler):
 def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
     handler = type("_BoundHandler", (_Handler,), {"state": _State()})
     server = ThreadingHTTPServer((host, port), handler)
+    parent_stop = threading.Event()
+    parent_watch: threading.Thread | None = None
+    if (parent_pid := _desktop_parent_pid()) is not None:
+        parent_watch = threading.Thread(
+            target=_watch_desktop_parent,
+            args=(server, parent_pid, parent_stop),
+            name="spacekeeper-parent-watch",
+            daemon=True,
+        )
+        parent_watch.start()
     print(f"Spacekeeper 대시보드: http://{host}:{port}")
     print("종료하려면 Ctrl+C 를 누르세요.")
     try:
@@ -740,4 +790,7 @@ def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
     except KeyboardInterrupt:
         print("\n서버를 종료합니다.")
     finally:
+        parent_stop.set()
         server.server_close()
+        if parent_watch is not None:
+            parent_watch.join(timeout=1)
