@@ -46,6 +46,10 @@ class WebContractTests(unittest.TestCase):
         missing = [tag for tag in tags if not re.search(r'\btype="button"', tag)]
         self.assertEqual(missing, [])
 
+    def test_diagnostics_explains_bundled_runtime(self) -> None:
+        self.assertIn('data.runtime.mode === "bundled"', APP_JS)
+        self.assertIn("별도의 Python 설치가 필요하지 않습니다.", APP_JS)
+
 
 if __name__ == "__main__":
     unittest.main()

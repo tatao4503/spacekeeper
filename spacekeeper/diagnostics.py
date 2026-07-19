@@ -153,9 +153,12 @@ def _probe_directory_write(
 
 def _runtime_check(home: Path, package_root: Path) -> tuple[dict[str, str], dict]:
     staged_root = home / ".spacekeeper" / "runtime"
-    runtime_mode = (
-        "staged" if package_root.is_relative_to(staged_root) else "development"
-    )
+    if getattr(sys, "frozen", False):
+        runtime_mode = "bundled"
+    elif package_root.is_relative_to(staged_root):
+        runtime_mode = "staged"
+    else:
+        runtime_mode = "development"
     version = ".".join(str(part) for part in sys.version_info[:3])
     required_assets = (
         package_root / "web" / "index.html",
@@ -165,11 +168,11 @@ def _runtime_check(home: Path, package_root: Path) -> tuple[dict[str, str], dict
     assets_ready = all(path.is_file() for path in required_assets)
     version_ready = sys.version_info >= (3, 11)
     status_value = "ready" if version_ready and assets_ready else "blocked"
-    mode_label = (
-        "데스크톱 앱용 스테이징 런타임"
-        if runtime_mode == "staged"
-        else "개발 소스 런타임"
-    )
+    mode_label = {
+        "bundled": "앱에 포함된 독립 실행 런타임",
+        "staged": "데스크톱 앱용 스테이징 런타임",
+        "development": "개발 소스 런타임",
+    }[runtime_mode]
     details = [f"{mode_label} · Python {version}"]
     if not version_ready:
         details.append("Python 3.11 이상이 필요합니다.")

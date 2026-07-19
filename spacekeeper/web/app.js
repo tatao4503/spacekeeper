@@ -975,7 +975,9 @@ function renderDiagnostics(data) {
     }).join("");
 
   document.getElementById("diagnostics-runtime-note").textContent =
-    data.runtime.mode === "staged"
+    data.runtime.mode === "bundled"
+      ? "현재 앱에 포함된 독립 실행 런타임을 점검한 결과입니다. 별도의 Python 설치가 필요하지 않습니다."
+      : data.runtime.mode === "staged"
       ? "현재 데스크톱 앱용 런타임을 점검한 결과입니다."
       : "개발 서버에서는 터미널·Python 권한이 반영될 수 있어 데스크톱 앱 결과와 다를 수 있습니다.";
 }

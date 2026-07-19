@@ -1,7 +1,8 @@
 # Spacekeeper
 
-Spacekeeper는 맥북 저장공간을 **삭제하지 않고 먼저 설명하는** 로컬 에이전트입니다.
-파일명과 크기 같은 스캔 정보는 네트워크로 전송하지 않으며, 현재 버전에는 삭제 기능이 없습니다.
+Spacekeeper는 맥북 저장공간을 **바로 삭제하지 않고 먼저 설명하는** 로컬 에이전트입니다.
+파일명과 크기 같은 스캔 정보는 네트워크로 전송하지 않습니다. 선택한 항목은 먼저
+복원 가능한 격리함으로 옮기며, 사용자가 다시 확인한 항목만 macOS 휴지통으로 보냅니다.
 
 ## 현재 가능한 것
 
@@ -14,6 +15,7 @@ Spacekeeper는 맥북 저장공간을 **삭제하지 않고 먼저 설명하는*
 - 희소 파일과 클라우드 자리표시자로 부풀지 않도록 실제 할당 블록 기준 계산
 - 경로 기반 고정 ID가 붙은 위험도별 정리 미리보기
 - 격리 전 후보와 격리된 항목을 Finder에서 바로 확인
+- 선택 항목 격리, 원래 위치 복원, 확인한 항목만 macOS 휴지통으로 이동
 
 > 후보는 자동 삭제 승인이 아닙니다. 특히 `검토 필요`와 `높은 주의` 항목은 내용을 직접 확인해야 합니다.
 
@@ -28,16 +30,30 @@ Spacekeeper는 맥북 저장공간을 **삭제하지 않고 먼저 설명하는*
 ```bash
 cd desktop
 npm install               # 최초 1회
-./stage-runtime.sh        # 파이썬 런타임을 ~/.spacekeeper/runtime 로 복사
 npm run tauri dev         # 개발 실행
-npm run tauri build       # 배포용 .app / .dmg 빌드 (src-tauri/target/*/bundle/)
+npm run build             # 검증된 배포용 .app / .dmg 빌드 (src-tauri/target/*/bundle/)
 ```
 
-> **런타임 스테이징이 필요한 이유:** 저장소가 `~/Desktop`처럼 macOS가 보호하는
-> 폴더에 있으면, 서명 없는 앱이 스폰한 파이썬이 시작할 때 그 경로를 훑다가
-> 권한 프롬프트에 막힙니다. 그래서 파이썬 런타임은 보호되지 않는
-> `~/.spacekeeper/runtime`에 두고 실행합니다. 파이썬 소스를 바꾸면
-> `./stage-runtime.sh`를 다시 실행하세요.
+`tauri dev`와 `npm run build`는 PyInstaller 빌드를 먼저 실행해 Python 인터프리터와
+Spacekeeper 서버를 앱에 포함합니다. 최종 사용자는 Python이나 별도 패키지를 설치할
+필요가 없습니다. 배포 빌드는 전체 앱 번들의 확장 속성을 정리하고 ad-hoc 서명과 DMG
+무결성까지 확인합니다. 최초 개발 빌드에서만 `desktop/.venv-sidecar`에 빌드 도구가 준비됩니다.
+
+### GitHub 베타 배포
+
+현재 생성되는 DMG는 빌드한 Mac과 같은 CPU 계열용입니다. 지금 확인한 산출물은
+**Apple Silicon(arm64) 전용**이며, 앱과 독립 실행 런타임을 함께 포함합니다.
+GitHub Releases에는 `Spacekeeper_0.1.0_aarch64.dmg`와 아래 명령으로 만든 SHA-256을
+같이 올립니다.
+
+```bash
+shasum -a 256 src-tauri/target/release/bundle/dmg/Spacekeeper_0.1.0_aarch64.dmg
+```
+
+이 베타는 Apple Developer ID 공증 전의 ad-hoc 서명본입니다. 처음 실행할 때 macOS가
+차단하면 Finder에서 앱을 Control-클릭해 **열기**를 선택하거나 **시스템 설정 → 개인정보
+보호 및 보안 → 확인 없이 열기**를 사용해야 합니다. 불특정 다수에게 일반 배포하기
+전에는 Developer ID 서명·공증과 별도 Intel Mac 빌드 또는 universal2 빌드가 필요합니다.
 
 > **전체 디스크 접근:** 앱이 `~/Desktop`·`~/Documents`·`~/Downloads` 등 보호
 > 폴더를 스캔하려면 **시스템 설정 → 개인정보 보호 및 보안 → 전체 디스크 접근 권한**에
@@ -77,7 +93,7 @@ python3 -m spacekeeper --serve --port 9000
 
 ## CLI 실행
 
-Python 3.11 이상만 필요하며 외부 패키지는 없습니다.
+CLI는 Python 3.11 이상만 필요하며 외부 패키지는 없습니다.
 
 ```bash
 cd /Users/yuntaeung/Desktop/코딩/spacekeeper

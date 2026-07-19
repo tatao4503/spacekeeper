@@ -90,6 +90,21 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertEqual(local_server["status"], "blocked")
         self.assertIn("0.0.0.0", local_server["detail"])
 
+    def test_identifies_frozen_desktop_runtime_as_bundled(self) -> None:
+        package_root = Path(diagnostics.__file__).resolve().parent
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            mock.patch.object(diagnostics.sys, "frozen", True, create=True),
+        ):
+            check, runtime = diagnostics._runtime_check(
+                Path(temp_dir),
+                package_root,
+            )
+
+        self.assertEqual(check["status"], "ready")
+        self.assertIn("독립 실행", check["detail"])
+        self.assertEqual(runtime["mode"], "bundled")
+
 
 if __name__ == "__main__":
     unittest.main()

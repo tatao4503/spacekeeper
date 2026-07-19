@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "spacekeeper-local"
 version = "0.1.0"
-description = "A read-only, local-first macOS storage analysis agent"
+description = "A local-first macOS storage cleaner with reversible quarantine"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

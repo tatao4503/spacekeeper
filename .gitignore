@@ -15,5 +15,9 @@ build/
 
 # 데스크탑 앱 (Tauri)
 desktop/node_modules/
+desktop/.venv-sidecar/
+desktop/.sidecar-build/
+desktop/.sidecar-dist/
+desktop/src-tauri/binaries/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
