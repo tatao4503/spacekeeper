@@ -1297,6 +1297,7 @@ function switchView(view) {
   });
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.getElementById("view-" + view).classList.add("active");
+  if (location.hash.slice(1) !== view) history.replaceState(null, "", "#" + view);
   if (view === "spacetree" && !currentTreePath) loadSpaceTree();
   if (view === "largefiles" && !lastLargeFiles) loadLargeFiles();
   if (view === "browsercache" && !lastBrowserCaches) loadBrowserCaches();
@@ -1305,6 +1306,129 @@ function switchView(view) {
   if (view === "duplicates") renderDuplicates();
   if (view === "apps" && !lastApps) loadApps();
   if (view === "diagnostics") loadDiagnostics();
+  if (view === "startup") loadStartup();
+  if (view === "photos" && !lastPhotos) loadPhotos();
+}
+
+/* ---------- 비슷한 사진 ---------- */
+const selPhotos = new Set();
+let lastPhotos = null;
+
+async function loadPhotos() {
+  const list = document.getElementById("photos-list");
+  const button = document.getElementById("photos-scan");
+  list.innerHTML = `<div class="q-empty">사진을 비교하는 중… 장수가 많으면 시간이 걸립니다.</div>`;
+  button.disabled = true;
+  try {
+    const data = await api("/api/similar-photos");
+    lastPhotos = data;
+    selPhotos.clear();
+    renderPhotos(data);
+  } catch (e) {
+    list.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderPhotos(data) {
+  const list = document.getElementById("photos-list");
+  const cappedNote = data.capped
+    ? ` · 상한 ${data.max_images.toLocaleString()}장까지만 검사`
+    : "";
+  document.getElementById("photos-summary").textContent =
+    `${data.scanned_images.toLocaleString()}장 검사 · ${data.group_count}개 그룹 · `
+    + `${data.reclaimable_human} 정리 가능${cappedNote}`;
+  list.innerHTML = "";
+  if (!data.group_count) {
+    list.innerHTML = `<div class="q-empty">비슷한 사진을 찾지 못했습니다.</div>`;
+    updatePhotosSelection();
+    return;
+  }
+  for (const group of data.groups) {
+    const card = document.createElement("div");
+    card.className = "card dup-group";
+    card.innerHTML = `
+      <div class="dup-group-head"><b>${group.count}장</b> · ${group.reclaimable_human} 정리 가능</div>
+      ${group.files.map((f) => `
+        <div class="entry">
+          <label class="entry-select">
+            <input type="checkbox" data-id="${f.action_id}" ${f.keep ? "disabled" : ""} />
+            <span class="entry-main">
+              <span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.path)}</span>
+              ${f.keep ? `<span class="entry-reason dup-keep">기본 보관</span>` : ""}
+            </span>
+          </label>
+          <span class="entry-size">${f.allocated_human}</span>
+        </div>`).join("")}`;
+    card.querySelectorAll("input[data-id]").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        cb.checked ? selPhotos.add(cb.dataset.id) : selPhotos.delete(cb.dataset.id);
+        updatePhotosSelection();
+      });
+    });
+    list.appendChild(card);
+  }
+  updatePhotosSelection();
+}
+
+function updatePhotosSelection() {
+  document.getElementById("photos-actions").hidden = selPhotos.size === 0;
+  document.getElementById("photos-selection").textContent = `${selPhotos.size}개 선택`;
+}
+
+/* ---------- 시작 프로그램 ---------- */
+const selStartup = new Set();
+
+async function loadStartup() {
+  const list = document.getElementById("startup-list");
+  list.innerHTML = `<div class="q-empty">자동 실행 항목을 확인하는 중…</div>`;
+  try {
+    const data = await api("/api/startup-items");
+    selStartup.clear();
+    renderStartup(data);
+  } catch (e) {
+    list.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderStartup(data) {
+  const list = document.getElementById("startup-list");
+  document.getElementById("startup-summary").textContent =
+    `사용자 ${data.user_count}개 · 시스템 ${data.system_count}개`;
+  list.innerHTML = "";
+  if (!data.items.length) {
+    list.innerHTML = `<div class="q-empty">자동 실행 항목이 없습니다.</div>`;
+    updateStartupSelection();
+    return;
+  }
+  for (const item of data.items) {
+    const row = document.createElement("div");
+    row.className = "q-item";
+    row.innerHTML = `
+      <label class="entry-select">
+        <input type="checkbox" data-id="${item.action_id || ""}" ${item.manageable ? "" : "disabled"} />
+      </label>
+      <span class="entry-main">
+        <span class="entry-path" title="${escapeHtml(item.path)}">${escapeHtml(item.label)}</span>
+        <span class="entry-reason">${escapeHtml(item.program || item.path)}</span>
+      </span>
+      <span class="badge ${item.manageable ? "low" : "medium"}">${item.manageable ? "사용자" : "시스템 · 잠김"}</span>`;
+    const cb = row.querySelector("input[data-id]");
+    if (item.manageable) {
+      cb.addEventListener("change", () => {
+        cb.checked ? selStartup.add(cb.dataset.id) : selStartup.delete(cb.dataset.id);
+        updateStartupSelection();
+      });
+    }
+    list.appendChild(row);
+  }
+  updateStartupSelection();
+}
+
+function updateStartupSelection() {
+  document.getElementById("startup-actions").hidden = selStartup.size === 0;
+  document.getElementById("startup-selection").textContent = `${selStartup.size}개 선택`;
 }
 
 /* ---------- 첫 실행 온보딩 ---------- */
@@ -1363,6 +1487,18 @@ function initLangSwitch() {
 document.addEventListener("DOMContentLoaded", () => {
   initLangSwitch();
   initOnboarding();
+  document.getElementById("photos-scan").addEventListener("click", loadPhotos);
+  document.getElementById("startup-scan").addEventListener("click", loadStartup);
+  document.getElementById("photos-reclaim").addEventListener("click", async (e) => {
+    const ids = [...selPhotos];
+    const out = await reclaimIds(ids, e.currentTarget, "선택 항목 격리", bytesForIds(ids));
+    if (out) await loadPhotos();
+  });
+  document.getElementById("startup-reclaim").addEventListener("click", async (e) => {
+    const ids = [...selStartup];
+    const out = await reclaimIds(ids, e.currentTarget, "선택 항목 끄기", 0);
+    if (out) await loadStartup();
+  });
   startSystemMonitor();
   document.getElementById("preset").addEventListener("change", (e) => {
     document.getElementById("path-input").disabled = e.currentTarget.value !== "custom";
@@ -1391,7 +1527,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const shortcutModal = document.getElementById("shortcut-modal");
   document.getElementById("close-shortcut-modal")?.addEventListener("click", () => shortcutModal?.close());
 
-  const navOrder = ["dashboard", "spacetree", "duplicates", "apps", "largefiles", "browsercache", "quarantine", "schedule", "diagnostics"];
+  const navOrder = ["dashboard", "spacetree", "duplicates", "apps", "largefiles", "browsercache", "photos", "startup", "quarantine", "schedule", "diagnostics"];
+  const fromHash = location.hash.slice(1);
+  if (navOrder.includes(fromHash)) switchView(fromHash);
+
   document.addEventListener("keydown", (e) => {
     const tag = document.activeElement?.tagName;
     if (e.key === "?" || (e.key === "/" && (e.metaKey || e.ctrlKey))) {

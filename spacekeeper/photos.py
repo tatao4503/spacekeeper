@@ -161,6 +161,7 @@ def find_similar_photos(
         raise FileNotFoundError(f"디렉토리가 아닙니다: {resolved}")
 
     images = _iter_images(resolved, min_bytes, max_images)
+    capped = len(images) >= max_images
     hashed: list[tuple[Path, int, int]] = []
     for path, size in images:
         digest = photo_hash(path)
@@ -209,6 +210,8 @@ def find_similar_photos(
     return {
         "path": str(resolved),
         "scanned_images": len(hashed),
+        "capped": capped,
+        "max_images": max_images,
         "group_count": len(groups),
         "reclaimable_bytes": total,
         "reclaimable_human": format_bytes(total),
