@@ -13,6 +13,8 @@ from typing import Any
 
 from .engine import _allocated_bytes
 
+from .report import format_bytes
+
 APP_DIRS = (Path("/Applications"), Path.home() / "Applications")
 
 # 앱 잔여물이 흔히 쌓이는 ~/Library 하위 폴더.
@@ -26,13 +28,42 @@ _LEFTOVER_DIRS = (
     "Saved Application State",
     "WebKit",
     "Group Containers",
+    "LaunchAgents",
+    "LaunchDaemons",
+    "Developer",
+    "Cookies",
+    "Application Scripts",
+    "Autosave Information",
 )
+
+_CATEGORY_MAP = {
+    "Caches": "cache",
+    "HTTPStorages": "cache",
+    "WebKit": "cache",
+    "Cookies": "cache",
+    "Saved Application State": "state",
+    "Autosave Information": "state",
+    "Preferences": "preference",
+    "Containers": "container",
+    "Group Containers": "container",
+    "Application Scripts": "container",
+    "Logs": "logs",
+}
 
 
 @dataclass(frozen=True)
 class LeftoverItem:
     path: str
     allocated_bytes: int
+    category: str = "support"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "allocated_bytes": self.allocated_bytes,
+            "allocated_human": format_bytes(self.allocated_bytes),
+            "category": self.category,
+        }
 
 
 @dataclass(frozen=True)
@@ -55,6 +86,10 @@ class InstalledApp:
         payload = asdict(self)
         payload["leftover_bytes"] = self.leftover_bytes
         payload["total_bytes"] = self.total_bytes
+        payload["leftovers"] = [item.to_dict() for item in self.leftovers]
+        payload["app_human"] = format_bytes(self.app_bytes)
+        payload["leftover_human"] = format_bytes(self.leftover_bytes)
+        payload["total_human"] = format_bytes(self.total_bytes)
         return payload
 
 
@@ -93,8 +128,13 @@ def _find_leftovers(bundle_id: str, app_stem: str) -> list[LeftoverItem]:
                 bundle_id and entry.name.startswith(bundle_id)
             ):
                 seen.add(entry)
+                category = _CATEGORY_MAP.get(sub, "support")
                 found.append(
-                    LeftoverItem(path=str(entry), allocated_bytes=_allocated_bytes(entry))
+                    LeftoverItem(
+                        path=str(entry),
+                        allocated_bytes=_allocated_bytes(entry),
+                        category=category,
+                    )
                 )
     return found
 

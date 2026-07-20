@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from . import diagnostics, engine
+from . import diagnostics, engine, notifier
 from .apps import scan_apps
 from .models import ScanOptions
 from .planning import _action_id, build_cleanup_plan
@@ -210,6 +210,11 @@ class _State:
             }
             job.result = payload
             job.status = "completed"
+            notifier.notify_scan_complete(
+                payload.get("review_bytes", 0),
+                payload.get("candidate_count", 0),
+                duration_seconds=payload.get("duration"),
+            )
 
     def _run_scan(self, job: _ScanJob) -> None:
         try:
@@ -538,6 +543,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_static("style.css", "text/css; charset=utf-8")
         elif route.path == "/app.js":
             self._send_static("app.js", "application/javascript; charset=utf-8")
+        elif route.path == "/i18n.js":
+            self._send_static("i18n.js", "application/javascript; charset=utf-8")
         elif route.path == "/api/scan":
             try:
                 payload = _scan_payload(parse_qs(route.query))
@@ -582,6 +589,58 @@ class _Handler(BaseHTTPRequestHandler):
                     server_host=str(self.server.server_address[0])
                 )
             )
+        elif route.path == "/api/space-tree":
+            query_path = parse_qs(route.query).get("path", [""])[0]
+            target = Path(query_path).expanduser() if query_path else Path.home() / "Downloads"
+            try:
+                from .scanner import build_space_tree
+                payload = build_space_tree(target)
+            except (FileNotFoundError, PermissionError, ValueError) as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            self._send_json(payload)
+        elif route.path == "/api/system-status":
+            self._send_json(diagnostics.get_system_metrics())
+        elif route.path == "/api/large-files":
+            qs = parse_qs(route.query)
+            query_path = qs.get("path", [""])[0]
+            target = Path(query_path).expanduser() if query_path else Path.home()
+            min_mb = int(qs.get("min_mb", ["50"])[0])
+            limit = min(int(qs.get("limit", ["100"])[0]), 500)
+            try:
+                from .scanner import find_large_files
+                payload = find_large_files(
+                    target, min_bytes=min_mb * 1024 * 1024, limit=limit
+                )
+            except (FileNotFoundError, PermissionError, ValueError) as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            self._send_json(payload)
+        elif route.path == "/api/browser-caches":
+            try:
+                from .browsers import scan_browser_caches
+                self._send_json(scan_browser_caches())
+            except Exception as exc:
+                self._send_json({"error": str(exc)}, status=500)
+        elif route.path == "/api/schedule":
+            from .scheduler import load_schedule, to_dict
+            self._send_json(to_dict(load_schedule()))
+        elif route.path == "/api/app-icon":
+            app_path = parse_qs(route.query).get("path", [""])[0]
+            if not app_path:
+                self._send_json({"error": "path 파라미터가 필요합니다."}, status=400)
+                return
+            from .icons import get_icon_bytes
+            icon_data = get_icon_bytes(app_path)
+            if icon_data:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(icon_data)))
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(icon_data)
+            else:
+                self.send_error(404)
         else:
             self.send_error(404)
 
@@ -704,6 +763,12 @@ class _Handler(BaseHTTPRequestHandler):
             except engine.EngineRecoveryError as exc:
                 self._send_json({"error": str(exc)}, status=500)
                 return
+            if outcome.moved:
+                notifier.notify_quarantine_action(
+                    restored=False,
+                    item_count=len(outcome.moved),
+                    total_bytes=outcome.quarantined_bytes,
+                )
             self._send_json(outcome.to_dict())
         elif route.path == "/api/restore":
             action_id = body.get("action_id")
@@ -733,6 +798,11 @@ class _Handler(BaseHTTPRequestHandler):
             except OSError as exc:
                 self._send_json({"error": f"복원 중 오류가 발생했습니다: {exc}"}, status=500)
                 return
+            notifier.notify_quarantine_action(
+                restored=True,
+                item_count=1,
+                total_bytes=record.allocated_bytes,
+            )
             self._send_json(record.to_dict())
         elif route.path == "/api/empty":
             if body.get("confirmed") is not True:
@@ -766,6 +836,16 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(
                 {"emptied": [r.to_dict() for r in emptied], "count": len(emptied)}
             )
+        elif route.path == "/api/schedule":
+            from .scheduler import from_dict, save_schedule, to_dict
+            from .launchd_agent import install_launchd_agent, uninstall_launchd_agent
+            config = from_dict(body)
+            save_schedule(config)
+            if config.enabled:
+                install_launchd_agent(config.interval_hours)
+            else:
+                uninstall_launchd_agent()
+            self._send_json(to_dict(config))
         else:
             self.send_error(404)
 

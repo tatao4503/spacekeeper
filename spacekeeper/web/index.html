@@ -20,23 +20,43 @@
         <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z" /></svg></span>
         <span>공간 요약</span>
       </button>
-      <button class="nav-item" type="button" data-view="duplicates" title="단축키: ⌘2 또는 Ctrl+2">
+      <button class="nav-item" type="button" data-view="spacetree" title="단축키: ⌘2 또는 Ctrl+2">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="10" height="10" rx="1" /><rect x="15" y="3" width="6" height="10" rx="1" /><rect x="3" y="15" width="18" height="6" rx="1" /></svg></span>
+        <span>디스크 지도</span>
+      </button>
+      <button class="nav-item" type="button" data-view="duplicates" title="단축키: ⌘3 또는 Ctrl+3">
         <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 8h11v11H8z" /><path d="M5 16H4V4h12v1" /></svg></span>
         <span>중복 파일</span>
       </button>
-      <button class="nav-item" type="button" data-view="apps" title="단축키: ⌘3 또는 Ctrl+3">
-        <span class="nav-ico" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg></span>
+      <button class="nav-item" type="button" data-view="apps" title="단축키: ⌘4 또는 Ctrl+4">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg></span>
         <span>앱과 관련 파일</span>
       </button>
-      <button class="nav-item" type="button" data-view="quarantine" title="단축키: ⌘4 또는 Ctrl+4">
+      <button class="nav-item" type="button" data-view="largefiles" title="단축키: ⌘5 또는 Ctrl+5">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6M12 18v-6m-3 3 3-3 3 3" /></svg></span>
+        <span>대용량 파일</span>
+      </button>
+      <button class="nav-item" type="button" data-view="browsercache" title="단축키: ⌘6 또는 Ctrl+6">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10" /></svg></span>
+        <span>브라우저·메일</span>
+      </button>
+      <button class="nav-item" type="button" data-view="quarantine" title="단축키: ⌘7 또는 Ctrl+7">
         <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8Z" /><path d="M8 8V5h8v3M9 12v4m6-4v4" /></svg></span>
         <span>격리함</span>
       </button>
-      <button class="nav-item" type="button" data-view="diagnostics" title="단축키: ⌘5 또는 Ctrl+5">
+      <button class="nav-item" type="button" data-view="schedule" title="단축키: ⌘8 또는 Ctrl+8">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg></span>
+        <span>자동 정리</span>
+      </button>
+      <button class="nav-item" type="button" data-view="diagnostics" title="단축키: ⌘9 또는 Ctrl+9">
         <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.2-5 3.5 10 2.2-5H21" /><circle cx="12" cy="12" r="9" /></svg></span>
         <span>환경 진단</span>
       </button>
     </nav>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" class="lang-btn" data-lang="ko">한국어</button>
+      <button type="button" class="lang-btn" data-lang="en">English</button>
+    </div>
     <div class="sidebar-foot safety-card">
       <span class="safety-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 7 3v5c0 4.6-2.9 8-7 10-4.1-2-7-5.4-7-10V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg></span>
       <span><b>바로 삭제하지 않아요</b>선택한 항목만 격리함에 보관합니다.</span>
@@ -52,7 +72,14 @@
           <h1>내 Mac의 여유 공간</h1>
           <p>정리 후보를 찾아드려요. 확인한 항목만 안전하게 격리하세요.</p>
         </div>
-        <div class="privacy-pill"><span></span> 이 Mac에서만 분석</div>
+        <div class="header-right-group">
+          <div id="live-system-pill" class="live-system-pill" title="실시간 Mac 시스템 리소스 상태">
+            <span class="sys-item">CPU <b id="sys-cpu">--</b></span>
+            <span class="sys-item">RAM <b id="sys-ram">--</b></span>
+            <span class="sys-item">여유 <b id="sys-disk">--</b></span>
+          </div>
+          <div class="privacy-pill"><span></span> 이 Mac에서만 분석</div>
+        </div>
       </header>
 
       <div class="scan-shell">
@@ -164,6 +191,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/><path d="M12 3v3M4.5 6.5l2 2M19.5 6.5l-2 2"/></svg>
             낮은 위험 모두 선택
           </button>
+          <button id="smart-clean-btn" class="btn primary glow" type="button"
+            title="낮은 위험도 재생성 캐시를 원클릭으로 바로 격리함 이동">
+            ⚡ 쾌속 1-클릭 정리
+          </button>
           <button id="export-scan" class="btn ghost" type="button">JSON으로 저장</button>
         </div>
 
@@ -176,6 +207,22 @@
 
         <div id="category-list" class="category-list"></div>
       </div>
+    <!-- 디스크 지도 (Space Analyzer) -->
+    <section id="view-spacetree" class="view">
+      <header class="page-header compact">
+        <div>
+          <div class="eyebrow"><span></span> VISUAL SPACE MAP</div>
+          <h1>디스크 지도 (Space Analyzer)</h1>
+          <p>폴더별 용량 비중을 비주얼 블록(Treemap)으로 시각화합니다.</p>
+        </div>
+        <div class="spacer"></div>
+        <div class="tree-controls">
+          <input id="tree-path-input" class="tool-input" type="text" placeholder="예: ~/Downloads" aria-label="분석할 폴더 경로" />
+          <button id="tree-load-btn" class="btn primary" type="button">지도 분석</button>
+        </div>
+      </header>
+      <div id="tree-breadcrumb" class="tree-breadcrumb"></div>
+      <div id="tree-view-container" class="tree-view-container"></div>
     </section>
 
     <!-- 중복 파일 -->
@@ -216,6 +263,47 @@
       <div id="apps-list" class="apps-list"></div>
     </section>
 
+    <!-- 대용량 파일 -->
+    <section id="view-largefiles" class="view">
+      <header class="page-header compact">
+        <div>
+          <div class="eyebrow"><span></span> LARGE FILE FINDER</div>
+          <h1>대용량 파일</h1>
+          <p>지정한 크기 이상의 파일을 찾아 종류별로 보여줍니다.</p>
+        </div>
+        <div class="spacer"></div>
+        <div class="tree-controls">
+          <label class="field"><span class="field-label">최소 크기</span>
+            <select id="lf-min-mb">
+              <option value="10">10 MB</option>
+              <option value="50" selected>50 MB</option>
+              <option value="100">100 MB</option>
+              <option value="500">500 MB</option>
+              <option value="1000">1 GB</option>
+            </select>
+          </label>
+          <button id="lf-scan-btn" class="btn primary" type="button">파일 검색</button>
+        </div>
+      </header>
+      <div id="lf-summary" class="summary-pill" aria-live="polite"></div>
+      <div id="lf-list" class="large-file-list"></div>
+    </section>
+
+    <!-- 브라우저·메일 캐시 -->
+    <section id="view-browsercache" class="view">
+      <header class="page-header compact">
+        <div>
+          <div class="eyebrow"><span></span> BROWSER & MAIL CACHE</div>
+          <h1>브라우저·메일 캐시</h1>
+          <p>Safari, Chrome, Firefox, Edge, Arc 및 Mail 캐시를 탐지합니다.</p>
+        </div>
+        <div class="spacer"></div>
+        <button id="bc-scan-btn" class="btn primary" type="button">캐시 분석</button>
+      </header>
+      <div id="bc-summary" class="summary-pill" aria-live="polite"></div>
+      <div id="bc-list" class="browser-cache-list"></div>
+    </section>
+
     <!-- 격리함 -->
     <section id="view-quarantine" class="view">
       <header class="page-header compact">
@@ -237,6 +325,42 @@
         <span id="q-selection" class="tool-note" aria-live="polite">선택한 항목 없음</span>
       </div>
       <div id="quarantine-list" class="quarantine-list"></div>
+    <!-- 자동 정리 스케줄 -->
+    <section id="view-schedule" class="view">
+      <header class="page-header compact">
+        <div>
+          <div class="eyebrow"><span></span> AUTOMATED SCHEDULE</div>
+          <h1>자동 정리 스케줄</h1>
+          <p>macOS launchd 백그라운드 에이전트로 주기적인 안전 캐시 정리를 예약합니다.</p>
+        </div>
+        <div class="spacer"></div>
+        <button id="save-schedule-btn" class="btn primary" type="button">스케줄 저장</button>
+      </header>
+      <div class="card schedule-card">
+        <label class="chk-label">
+          <input type="checkbox" id="sched-enabled" />
+          <span><b>주기적 자동 스캔 및 정리 활성화</b><small>macOS launchd 백그라운드 에이전트를 설치합니다.</small></span>
+        </label>
+        <div class="sched-options">
+          <label class="field">
+            <span class="field-label">실행 주기</span>
+            <select id="sched-interval">
+              <option value="24">매일 (24시간)</option>
+              <option value="168" selected>매주 (168시간)</option>
+              <option value="720">매월 (30일)</option>
+            </select>
+          </label>
+          <label class="chk-label">
+            <input type="checkbox" id="sched-auto-clean" checked />
+            <span><b>낮은 위험 캐시 자동 격리</b><small>안전하게 재생성 가능한 시스템/개발자 캐시만 격리합니다.</small></span>
+          </label>
+          <label class="chk-label">
+            <input type="checkbox" id="sched-notify" checked />
+            <span><b>macOS 알림 받기</b><small>자동 스캔 및 격리 완료 시 알림 팝업을 띄웁니다.</small></span>
+          </label>
+        </div>
+        <div id="sched-status" class="tool-note" style="margin-top:16px;"></div>
+      </div>
     </section>
 
     <!-- 환경 진단 -->
@@ -277,7 +401,59 @@
     </section>
   </main>
 
+  <dialog id="shortcut-modal" class="modal">
+    <div class="modal-content">
+      <header class="modal-head">
+        <h2>⌨️ 파워 유저 키보드 단축키</h2>
+        <button id="close-shortcut-modal" class="btn ghost small" type="button">✕ 닫기</button>
+      </header>
+      <div class="shortcut-list">
+        <div class="sc-row"><kbd>⌘ 1</kbd> ~ <kbd>⌘ 9</kbd> <span>탭 즉시 이동 (공간 요약 ~ 환경 진단)</span></div>
+        <div class="sc-row"><kbd>⌘ F</kbd> / <kbd>Ctrl F</kbd> <span>검색 및 필터 포커스</span></div>
+        <div class="sc-row"><kbd>?</kbd> / <kbd>⌘ /</kbd> <span>단축키 도움말 팝업 열기</span></div>
+        <div class="sc-row"><kbd>Esc</kbd> <span>입력 폼 탈출 및 팝업 닫기</span></div>
+      </div>
+    </div>
+  </dialog>
+
   <div id="toast" class="toast" aria-atomic="true" hidden></div>
+
+  <!-- 첫 실행 온보딩 -->
+  <div id="onboarding" class="onboarding" hidden>
+    <div class="ob-card" role="dialog" aria-modal="true" aria-labelledby="ob-title">
+      <div class="ob-visual" aria-hidden="true"><span class="ob-orb"></span></div>
+
+      <div class="ob-step" data-step="1">
+        <div class="ob-kicker" data-i18n>안전 우선</div>
+        <h2 id="ob-title" data-i18n>파일을 삭제하지 않습니다</h2>
+        <p data-i18n>정리하기로 고른 항목은 삭제 대신 격리함으로 옮겨집니다. 언제든 원래 자리로 되돌릴 수 있고, 휴지통으로 비우는 것도 직접 확인한 뒤에만 진행됩니다.</p>
+      </div>
+
+      <div class="ob-step" data-step="2" hidden>
+        <div class="ob-kicker" data-i18n>권한 안내</div>
+        <h2 data-i18n>전체 디스크 접근 권한</h2>
+        <p data-i18n>데스크탑·문서·다운로드는 macOS가 보호하는 폴더입니다. 이 폴더까지 분석하려면 시스템 설정에서 Spacekeeper를 허용해 주세요. 허용하지 않아도 나머지 폴더는 분석할 수 있습니다.</p>
+        <button id="ob-open-settings" class="btn ghost small" type="button" data-i18n>시스템 설정 열기</button>
+      </div>
+
+      <div class="ob-step" data-step="3" hidden>
+        <div class="ob-kicker" data-i18n>시작하기</div>
+        <h2 data-i18n>분석할 위치를 고르세요</h2>
+        <p data-i18n>홈 폴더 전체를 한 번 분석하면 큰 파일, 오래된 다운로드, 다시 만들 수 있는 캐시가 한곳에 정리됩니다. 결과를 보고 직접 고르면 됩니다.</p>
+      </div>
+
+      <div class="ob-foot">
+        <div class="ob-dots" aria-hidden="true">
+          <span class="ob-dot is-on"></span><span class="ob-dot"></span><span class="ob-dot"></span>
+        </div>
+        <div class="spacer"></div>
+        <button id="ob-skip" class="btn ghost small" type="button" data-i18n>건너뛰기</button>
+        <button id="ob-next" class="btn primary" type="button" data-i18n>다음</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/i18n.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

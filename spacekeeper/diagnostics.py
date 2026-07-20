@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import stat
+import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -12,6 +13,97 @@ from ipaddress import ip_address
 from pathlib import Path
 
 from . import engine
+from .report import format_bytes
+
+
+def get_system_metrics() -> dict[str, object]:
+    """macOS CPU 로드, RAM 사용량, 디스크 공간 실시간 지표를 반환한다."""
+    # 1. Disk usage
+    disk = shutil.disk_usage(Path.home())
+    disk_total = disk.total
+    disk_used = disk.used
+    disk_free = disk.free
+    disk_percent = round((disk_used / disk_total * 100), 1) if disk_total > 0 else 0.0
+
+    # 2. CPU Load
+    try:
+        load_1, load_5, load_15 = os.getloadavg()
+    except (AttributeError, OSError):
+        load_1, load_5, load_15 = 0.0, 0.0, 0.0
+
+    # 3. RAM Memory (sysctl + vm_stat)
+    mem_total = 0
+    mem_free = 0
+    if sys.platform == "darwin":
+        try:
+            res = subprocess.run(
+                ["sysctl", "-n", "hw.memsize"],
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+            )
+            if res.returncode == 0:
+                mem_total = int(res.stdout.strip())
+        except Exception:
+            pass
+
+        try:
+            res = subprocess.run(
+                ["vm_stat"],
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+            )
+            if res.returncode == 0:
+                page_size = 4096
+                free_pages = 0
+                for line in res.stdout.splitlines():
+                    if "page size of" in line:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            try:
+                                page_size = int(parts[-2])
+                            except ValueError:
+                                pass
+                    elif "Pages free:" in line or "Pages inactive:" in line:
+                        parts = line.split()
+                        if parts:
+                            try:
+                                free_pages += int(parts[-1].rstrip("."))
+                            except ValueError:
+                                pass
+                mem_free = free_pages * page_size
+        except Exception:
+            pass
+
+    mem_used = max(0, mem_total - mem_free) if mem_total > 0 else 0
+    mem_percent = round((mem_used / mem_total * 100), 1) if mem_total > 0 else 0.0
+
+    return {
+        "cpu_load": {
+            "1m": round(load_1, 2),
+            "5m": round(load_5, 2),
+            "15m": round(load_15, 2),
+        },
+        "memory": {
+            "total_bytes": mem_total,
+            "total_human": format_bytes(mem_total) if mem_total else "–",
+            "used_bytes": mem_used,
+            "used_human": format_bytes(mem_used) if mem_used else "–",
+            "free_bytes": mem_free,
+            "free_human": format_bytes(mem_free) if mem_free else "–",
+            "used_percent": mem_percent,
+        },
+        "disk": {
+            "total_bytes": disk_total,
+            "total_human": format_bytes(disk_total),
+            "used_bytes": disk_used,
+            "used_human": format_bytes(disk_used),
+            "free_bytes": disk_free,
+            "free_human": format_bytes(disk_free),
+            "used_percent": disk_percent,
+        },
+    }
 
 
 def _check(

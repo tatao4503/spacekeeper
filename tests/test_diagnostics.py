@@ -105,6 +105,14 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertIn("독립 실행", check["detail"])
         self.assertEqual(runtime["mode"], "bundled")
 
+    def test_get_system_metrics_returns_structure(self) -> None:
+        metrics = diagnostics.get_system_metrics()
+        self.assertIn("cpu_load", metrics)
+        self.assertIn("memory", metrics)
+        self.assertIn("disk", metrics)
+        self.assertIn("1m", metrics["cpu_load"])
+        self.assertIn("used_percent", metrics["disk"])
+
 
 if __name__ == "__main__":
     unittest.main()

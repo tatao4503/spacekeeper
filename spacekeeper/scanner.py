@@ -18,6 +18,7 @@ from .models import (
     ScanOptions,
     ScanResult,
 )
+from .report import format_bytes
 
 
 ARCHIVE_SUFFIXES = {
@@ -59,6 +60,108 @@ class CacheRule:
 
 CACHE_RULES = (
     CacheRule(
+        ("Library", "Developer", "Xcode", "DerivedData"),
+        "xcode_derived_data",
+        "Xcode가 빌드하면서 만든 파생 데이터입니다.",
+        "정리 후 첫 빌드가 오래 걸리고 인덱스를 다시 만들 수 있습니다.",
+        group_child=True,
+    ),
+    CacheRule(
+        ("Library", "Developer", "CoreSimulator", "Devices"),
+        "xcode_simulator",
+        "Xcode 시뮬레이터 가상 기기 데이터와 런타임 저장소입니다.",
+        "시뮬레이터에 설치된 임시 앱과 로컬 데이터가 초기화됩니다.",
+    ),
+    CacheRule(
+        ("Library", "Developer", "CoreSimulator", "Caches"),
+        "xcode_simulator",
+        "Xcode 시뮬레이터 실행 캐시입니다.",
+        "필요 시 시뮬레이터 실행 때 자동 재생성됩니다.",
+    ),
+    CacheRule(
+        ("Library", "Developer", "Xcode", "iOS DeviceSupport"),
+        "xcode_device_support",
+        "연결했던 iOS 기기의 디버깅 기호(Symbol) 파일입니다.",
+        "구형 iOS 기기 기호 파일은 정리해도 안전하지만 해당 기기 디버깅 시 재추출됩니다.",
+    ),
+    CacheRule(
+        ("Library", "Developer", "Xcode", "watchOS DeviceSupport"),
+        "xcode_device_support",
+        "연결했던 watchOS 기기의 디버깅 기호 파일입니다.",
+        "해당 기기 연결 디버깅 시 재추출됩니다.",
+    ),
+    CacheRule(
+        ("Library", "Developer", "Xcode", "tvOS DeviceSupport"),
+        "xcode_device_support",
+        "연결했던 tvOS 기기의 디버깅 기호 파일입니다.",
+        "해당 기기 연결 디버깅 시 재추출됩니다.",
+    ),
+    CacheRule(
+        ("Library", "Developer", "Xcode", "Archives"),
+        "xcode_archives",
+        "Xcode가 앱 배포/아카이브 빌드 시 남긴 아카이브(.xcarchive) 파일입니다.",
+        "과거 앱 배포 빌드 기록 및 디버깅 기호가 포함되어 있어 필요 여부를 검토해야 합니다.",
+        risk="medium",
+    ),
+    CacheRule(
+        ("Library", "Containers", "com.docker.docker"),
+        "docker_data",
+        "Docker 데스크탑이 보관 중인 VM 디스크 이미지, 컨테이너 및 빌드 캐시입니다.",
+        "Docker 데스크탑을 종료 후 정리해야 하며, 로컬 컨테이너와 빌드 레이어가 지워질 수 있습니다.",
+        risk="medium",
+    ),
+    CacheRule(
+        (".docker",),
+        "docker_data",
+        "Docker CLI 및 런타임 캐시 데이터입니다.",
+        "로컬 자격 증명과 빌드 캐시 설정이 초기화될 수 있습니다.",
+        risk="medium",
+    ),
+    CacheRule(
+        ("Library", "Caches", "Homebrew"),
+        "homebrew_cache",
+        "Homebrew 패키지 설치 및 업데이트 시 다운로드된 병목 캐시 파일입니다.",
+        "정리 후 필요 시 다시 인터넷에서 다운로드합니다.",
+    ),
+    CacheRule(
+        ("Library", "Caches", "CocoaPods"),
+        "cocoapods_cache",
+        "CocoaPods가 다운로드 및 인덱싱한 팟캐시입니다.",
+        "pod install 시 필요 시 다시 다운로드됩니다.",
+    ),
+    CacheRule(
+        ("Library", "Caches", "pip"),
+        "pip_cache",
+        "pip 패키지 설치 다운로드 캐시입니다.",
+        "다음 pip install 시 인터넷에서 다시 다운로드합니다.",
+    ),
+    CacheRule(
+        (".cache", "pip"),
+        "pip_cache",
+        "pip 패키지 설치 다운로드 캐시입니다.",
+        "다음 pip install 시 인터넷에서 다시 다운로드합니다.",
+    ),
+    CacheRule(
+        ("Library", "Caches", "go-build"),
+        "go_cache",
+        "Go 컴파일러가 다시 생성할 수 있는 빌드 캐시입니다.",
+        "첫 go build가 느려질 수 있습니다.",
+    ),
+    CacheRule(
+        (".m2", "repository"),
+        "maven_cache",
+        "Maven/Gradle이 다운로드한 Java 라이브러리 의존성 캐시입니다.",
+        "다음 빌드 시 필요한 의존성을 다시 인터넷에서 다운로드합니다.",
+        risk="medium",
+    ),
+    CacheRule(
+        (".android", "avd"),
+        "android_emulator",
+        "Android Studio가 생성한 가상 기기(AVD) 이미지 데이터입니다.",
+        "해당 가상 디바이스 및 내부 저장 데이터가 초기화되므로 확인이 필요합니다.",
+        risk="medium",
+    ),
+    CacheRule(
         ("Library", "Application Support", "Caches"),
         "app_cache",
         "앱 업데이트나 실행 과정에서 만든 캐시입니다.",
@@ -85,13 +188,6 @@ CACHE_RULES = (
         group_child=True,
     ),
     CacheRule(
-        ("Library", "Developer", "Xcode", "DerivedData"),
-        "xcode_derived_data",
-        "Xcode가 빌드하면서 만든 파생 데이터입니다.",
-        "정리 후 첫 빌드가 오래 걸리고 인덱스를 다시 만들 수 있습니다.",
-        group_child=True,
-    ),
-    CacheRule(
         (".npm", "_cacache"),
         "package_cache",
         "npm이 다시 내려받을 수 있는 패키지 캐시입니다.",
@@ -113,7 +209,7 @@ CACHE_RULES = (
     CacheRule(
         (".cache",),
         "user_cache",
-        "도구나 앱이 사용자 캐시 규약에 따라 저장한 데이터입니다.",
+        "도구가 앱이 사용자 캐시 규약에 따라 저장한 데이터입니다.",
         "필요할 때 다시 생성되지만 첫 실행이나 재다운로드에 시간이 걸릴 수 있습니다.",
         group_child=True,
         risk="medium",
@@ -599,3 +695,194 @@ def scan(
         cache_candidates=cache_candidates[: options.top],
         duplicate_groups=duplicate_groups[: options.top],
     )
+
+
+def build_space_tree(
+    target_path: Path,
+    *,
+    max_depth: int = 3,
+    max_children: int = 25,
+) -> dict[str, object]:
+    """target_path 하위의 용량 구조 트리를 비주얼 트리맵용으로 집계한다."""
+    resolved = target_path.resolve()
+    if not resolved.exists() or resolved.is_symlink():
+        raise FileNotFoundError(f"존재하지 않거나 접근할 수 없는 경로입니다: {resolved}")
+
+    def _node(current: Path, depth: int) -> dict[str, object]:
+        if current.is_file():
+            try:
+                stat = current.stat(follow_symlinks=False)
+                blocks = getattr(stat, "st_blocks", None)
+                bytes_count = blocks * 512 if blocks is not None else stat.st_size
+            except OSError:
+                bytes_count = 0
+            return {
+                "name": current.name,
+                "path": str(current),
+                "kind": "file",
+                "allocated_bytes": bytes_count,
+                "allocated_human": format_bytes(bytes_count),
+                "file_count": 1,
+                "children": [],
+            }
+
+        children_nodes: list[dict[str, object]] = []
+        total_bytes = 0
+        total_files = 0
+
+        try:
+            entries = list(os.scandir(current))
+        except (PermissionError, OSError):
+            entries = []
+
+        for entry in entries:
+            child_path = Path(entry.path)
+            if entry.is_symlink():
+                continue
+            if depth < max_depth and entry.is_dir(follow_symlinks=False):
+                child_tree = _node(child_path, depth + 1)
+                children_nodes.append(child_tree)
+                total_bytes += int(child_tree["allocated_bytes"])
+                total_files += int(child_tree["file_count"])
+            else:
+                try:
+                    stat = entry.stat(follow_symlinks=False)
+                    blocks = getattr(stat, "st_blocks", None)
+                    b = blocks * 512 if blocks is not None else stat.st_size
+                except OSError:
+                    b = 0
+                total_bytes += b
+                total_files += 1
+                if not entry.is_dir(follow_symlinks=False):
+                    children_nodes.append(
+                        {
+                            "name": child_path.name,
+                            "path": str(child_path),
+                            "kind": "file",
+                            "allocated_bytes": b,
+                            "allocated_human": format_bytes(b),
+                            "file_count": 1,
+                            "children": [],
+                        }
+                    )
+
+        children_nodes.sort(key=lambda item: int(item["allocated_bytes"]), reverse=True)
+        top_children = children_nodes[:max_children]
+        other_children = children_nodes[max_children:]
+        if other_children:
+            other_bytes = sum(int(item["allocated_bytes"]) for item in other_children)
+            other_files = sum(int(item["file_count"]) for item in other_children)
+            top_children.append(
+                {
+                    "name": f"기타 항목 ({len(other_children)}개)",
+                    "path": str(current),
+                    "kind": "other",
+                    "allocated_bytes": other_bytes,
+                    "allocated_human": format_bytes(other_bytes),
+                    "file_count": other_files,
+                    "children": [],
+                }
+            )
+
+        return {
+            "name": current.name or str(current),
+            "path": str(current),
+            "kind": "dir",
+            "allocated_bytes": total_bytes,
+            "allocated_human": format_bytes(total_bytes),
+            "file_count": total_files,
+            "children": top_children,
+        }
+
+    return _node(resolved, depth=1)
+
+
+# ---------- Large file finder ----------
+
+LARGE_FILE_KINDS: dict[str, set[str]] = {
+    "video": {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm", ".m4v", ".ts"},
+    "image": {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".psd", ".raw", ".heic", ".heif"},
+    "archive": {".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar", ".zst", ".tgz"},
+    "disk_image": {".dmg", ".iso", ".img", ".sparseimage", ".sparsebundle"},
+    "document": {".pdf", ".docx", ".xlsx", ".pptx", ".pages", ".numbers", ".keynote"},
+    "code": {".o", ".a", ".dylib", ".so", ".wasm", ".class", ".jar", ".war"},
+}
+
+_SUFFIX_TO_KIND: dict[str, str] = {}
+for _kind, _suffixes in LARGE_FILE_KINDS.items():
+    for _s in _suffixes:
+        _SUFFIX_TO_KIND[_s] = _kind
+
+KIND_ICONS: dict[str, str] = {
+    "video": "🎬",
+    "image": "🖼️",
+    "archive": "📦",
+    "disk_image": "💽",
+    "document": "📄",
+    "code": "⚙️",
+    "other": "📁",
+}
+
+
+def find_large_files(
+    root: Path,
+    *,
+    min_bytes: int = 50 * 1024 * 1024,
+    limit: int = 100,
+) -> dict[str, object]:
+    """root 하위에서 min_bytes 이상의 대용량 파일을 찾아 크기순 상위 limit개 반환."""
+    resolved = root.expanduser().resolve()
+    if not resolved.is_dir():
+        raise FileNotFoundError(f"디렉토리가 아닙니다: {resolved}")
+
+    results: list[dict[str, object]] = []
+
+    def _walk(directory: Path) -> None:
+        try:
+            entries = os.scandir(directory)
+        except (PermissionError, OSError):
+            return
+        with entries:
+            for entry in entries:
+                if entry.is_symlink():
+                    continue
+                if entry.is_dir(follow_symlinks=False):
+                    _walk(Path(entry.path))
+                elif entry.is_file(follow_symlinks=False):
+                    try:
+                        stat = entry.stat(follow_symlinks=False)
+                        blocks = getattr(stat, "st_blocks", None)
+                        allocated = blocks * 512 if blocks is not None else stat.st_size
+                    except OSError:
+                        continue
+                    if allocated >= min_bytes:
+                        suffix = Path(entry.name).suffix.lower()
+                        kind = _SUFFIX_TO_KIND.get(suffix, "other")
+                        results.append(
+                            {
+                                "name": entry.name,
+                                "path": entry.path,
+                                "kind": kind,
+                                "kind_icon": KIND_ICONS.get(kind, "📁"),
+                                "allocated_bytes": allocated,
+                                "allocated_human": format_bytes(allocated),
+                                "modified_at": stat.st_mtime,
+                            }
+                        )
+
+    _walk(resolved)
+    results.sort(key=lambda item: item["allocated_bytes"], reverse=True)  # type: ignore[arg-type]
+    top = results[:limit]
+    total_bytes = sum(int(item["allocated_bytes"]) for item in top)
+
+    return {
+        "path": str(resolved),
+        "min_bytes": min_bytes,
+        "min_human": format_bytes(min_bytes),
+        "files": top,
+        "count": len(top),
+        "total_found": len(results),
+        "total_bytes": total_bytes,
+        "total_human": format_bytes(total_bytes),
+    }
+

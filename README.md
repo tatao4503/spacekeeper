@@ -7,7 +7,7 @@ Spacekeeper는 맥북 저장공간을 **바로 삭제하지 않고 먼저 설명
 ## 현재 가능한 것
 
 - 큰 파일, 오래된 다운로드, 설치 파일과 압축 파일 찾기
-- `node_modules`, `.next`, Xcode `DerivedData`, 일반 앱 캐시 등 재생성 가능한 후보 묶기
+- `node_modules`, `.next`, Xcode (`DerivedData`/시뮬레이터/DeviceSupport/아카이브), Docker VM/캐시, Homebrew/CocoaPods/pip/Go/Maven 패키지 캐시, Android AVD 등 재생성 가능한 후보 묶기
 - 선택적으로 SHA-256 기반 완전 동일 파일 찾기
 - 사람이 읽는 한국어 보고서 또는 JSON 보고서 출력
 - 사용자 지정 경로 제외, Spacekeeper 격리함과 macOS 휴지통 자동 제외

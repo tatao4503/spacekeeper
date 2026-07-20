@@ -98,12 +98,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=8765,
         help="대시보드 포트(기본 8765, --serve에서 사용)",
     )
+    parser.add_argument(
+        "--scheduled-run",
+        action="store_true",
+        help="예약된 백그라운드 정리를 실행합니다(launchd 에이전트 내부용).",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.scheduled_run:
+        from .scheduler import run_scheduled
+
+        run_scheduled()
+        return 0
 
     if args.serve:
         from .server import serve
@@ -142,4 +153,9 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write("\n")
     else:
         print(rendered)
+        from .notifier import notify_scan_complete
+        notify_scan_complete(
+            result.review_candidate_bytes,
+            result.file_candidate_count + result.cache_candidate_count,
+        )
     return 0

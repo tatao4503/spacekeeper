@@ -76,6 +76,45 @@ class ScannerTests(unittest.TestCase):
             self.assertIn("large_file", categories)
             self.assertIn("old_download", categories)
 
+    def test_classifies_developer_caches(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            
+            # Docker data
+            docker_file = root / "Library" / "Containers" / "com.docker.docker" / "Data" / "Docker.raw"
+            docker_file.parent.mkdir(parents=True)
+            docker_file.write_bytes(b"docker")
+
+            # Xcode simulator
+            sim_file = root / "Library" / "Developer" / "CoreSimulator" / "Devices" / "sim.id"
+            sim_file.parent.mkdir(parents=True)
+            sim_file.write_bytes(b"simulator")
+
+            # Homebrew cache
+            brew_file = root / "Library" / "Caches" / "Homebrew" / "downloads" / "pkg.tar"
+            brew_file.parent.mkdir(parents=True)
+            brew_file.write_bytes(b"homebrew")
+
+            result = scan(ScanOptions(roots=(root,), large_bytes=100000))
+
+            categories = {candidate.category for candidate in result.cache_candidates}
+            self.assertIn("docker_data", categories)
+            self.assertIn("xcode_simulator", categories)
+            self.assertIn("homebrew_cache", categories)
+
+    def test_build_space_tree_generates_hierarchy(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sub = root / "subfolder"
+            sub.mkdir()
+            (sub / "file1.bin").write_bytes(b"x" * 100)
+            (root / "file2.bin").write_bytes(b"y" * 50)
+
+            tree = scanner.build_space_tree(root, max_depth=3)
+            self.assertEqual(tree["kind"], "dir")
+            self.assertEqual(tree["file_count"], 2)
+            self.assertTrue(len(tree["children"]) >= 1)
+
     def test_does_not_follow_symlinks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

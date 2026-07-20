@@ -6,6 +6,16 @@ const CATEGORY_META = {
   build_cache: { icon: "🏗️", label: "빌드 캐시" },
   rust_build: { icon: "🦀", label: "Rust 빌드 산출물" },
   xcode_derived_data: { icon: "🔨", label: "Xcode 파생 데이터" },
+  xcode_simulator: { icon: "📱", label: "Xcode 시뮬레이터" },
+  xcode_device_support: { icon: "📲", label: "iOS/watchOS 기기 기호" },
+  xcode_archives: { icon: "📦", label: "Xcode 아카이브" },
+  docker_data: { icon: "🐳", label: "Docker 캐시/데이터" },
+  homebrew_cache: { icon: "🍺", label: "Homebrew 캐시" },
+  cocoapods_cache: { icon: "🍫", label: "CocoaPods 캐시" },
+  pip_cache: { icon: "🐍", label: "pip 캐시" },
+  go_cache: { icon: "🦫", label: "Go 빌드 캐시" },
+  maven_cache: { icon: "☕", label: "Maven 라이브러리 캐시" },
+  android_emulator: { icon: "🤖", label: "Android 에뮬레이터" },
   app_cache: { icon: "💾", label: "앱 캐시" },
   user_cache: { icon: "📁", label: "사용자 캐시" },
   local_ai_model: { icon: "🧠", label: "로컬 AI 모델" },
@@ -1015,8 +1025,11 @@ async function loadDiagnostics() {
   }
 }
 
-async function openSystemSettings() {
-  const button = document.getElementById("open-privacy-settings");
+async function openSystemSettings(trigger) {
+  const button = trigger instanceof HTMLElement
+    ? trigger
+    : document.getElementById("open-privacy-settings");
+  const label = button.textContent;
   button.disabled = true;
   button.textContent = "여는 중…";
   try {
@@ -1030,11 +1043,252 @@ async function openSystemSettings() {
     toast(e.message, "err");
   } finally {
     button.disabled = false;
-    button.textContent = "시스템 설정 열기";
+    button.textContent = label;
+  }
+}
+
+async function smartClean() {
+  selectLowRisk();
+  const ids = [...selDash];
+  if (!ids.length) {
+    toast("격리할 낮은 위험 항목이 없습니다.", "ok");
+    return;
+  }
+  const button = document.getElementById("smart-clean-btn");
+  const bytes = bytesForIds(ids);
+  const out = await reclaimIds(ids, button, "⚡ 쾌속 1-클릭 정리", bytes);
+  if (out) {
+    selDash.clear();
+    await runScan();
   }
 }
 
 /* ---------- wiring ---------- */
+/* ---------- Live System Monitor ---------- */
+async function updateSystemMonitor() {
+  try {
+    const sys = await api("/api/system-status");
+    if (sys.cpu_load && document.getElementById("sys-cpu")) {
+      document.getElementById("sys-cpu").textContent = `${sys.cpu_load["1m"]}`;
+    }
+    if (sys.memory && document.getElementById("sys-ram")) {
+      document.getElementById("sys-ram").textContent = sys.memory.used_percent ? `${sys.memory.used_percent}%` : sys.memory.used_human;
+    }
+    if (sys.disk && document.getElementById("sys-disk")) {
+      document.getElementById("sys-disk").textContent = sys.disk.free_human;
+    }
+  } catch (_) {}
+}
+
+function startSystemMonitor() {
+  updateSystemMonitor();
+  setInterval(updateSystemMonitor, 8000);
+}
+
+/* ---------- Space Treemap Visualizer ---------- */
+let currentTreePath = "";
+
+async function loadSpaceTree(targetPath) {
+  const container = document.getElementById("tree-view-container");
+  const bc = document.getElementById("tree-breadcrumb");
+  if (!container || !bc) return;
+  container.innerHTML = `<div class="q-empty">폴더 구조와 용량 비중을 분석하는 중…</div>`;
+  bc.innerHTML = "";
+  try {
+    const url = targetPath ? `/api/space-tree?path=${encodeURIComponent(targetPath)}` : "/api/space-tree";
+    const data = await api(url);
+    currentTreePath = data.path;
+    document.getElementById("tree-path-input").value = data.path;
+    renderBreadcrumb(data.path);
+    renderTreemap(data);
+  } catch (e) {
+    container.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderBreadcrumb(fullPath) {
+  const bc = document.getElementById("tree-breadcrumb");
+  if (!bc) return;
+  const parts = fullPath.split("/").filter(Boolean);
+  let accumulated = "";
+  let html = `<span class="tree-bc-item" data-path="/">/ (Root)</span>`;
+  for (let i = 0; i < parts.length; i++) {
+    accumulated += "/" + parts[i];
+    const isLast = i === parts.length - 1;
+    if (isLast) {
+      html += ` <span aria-hidden="true">/</span> <span class="tree-bc-curr">${escapeHtml(parts[i])}</span>`;
+    } else {
+      const p = accumulated;
+      html += ` <span aria-hidden="true">/</span> <span class="tree-bc-item" data-path="${escapeHtml(p)}">${escapeHtml(parts[i])}</span>`;
+    }
+  }
+  bc.innerHTML = html;
+  bc.querySelectorAll(".tree-bc-item").forEach((el) => {
+    el.addEventListener("click", () => loadSpaceTree(el.dataset.path));
+  });
+}
+
+function renderTreemap(treeNode) {
+  const container = document.getElementById("tree-view-container");
+  if (!container) return;
+  if (!treeNode.children || !treeNode.children.length) {
+    container.innerHTML = `<div class="q-empty">폴더에 포함된 항목이 없거나 접근할 수 없습니다.</div>`;
+    return;
+  }
+  const total = Number(treeNode.allocated_bytes || 1);
+  const grid = document.createElement("div");
+  grid.className = "treemap-grid";
+
+  for (const child of treeNode.children) {
+    const childBytes = Number(child.allocated_bytes || 0);
+    const pct = Math.max(1, Math.round((childBytes / total) * 100));
+    const block = document.createElement("div");
+    block.className = `treemap-block kind-${escapeHtml(child.kind)}`;
+    block.innerHTML = `
+      <div class="treemap-fill-bar" style="width: ${pct}%"></div>
+      <div class="treemap-name" title="${escapeHtml(child.name)}">${child.kind === 'dir' ? '📁 ' : child.kind === 'other' ? '📦 ' : '📄 '}${escapeHtml(child.name)}</div>
+      <div class="treemap-meta">
+        <span>${child.file_count ? child.file_count + '개' : ''} (${pct}%)</span>
+        <span class="treemap-size">${escapeHtml(child.allocated_human)}</span>
+      </div>`;
+
+    if (child.kind === "dir") {
+      block.addEventListener("click", () => loadSpaceTree(child.path));
+    }
+    grid.appendChild(block);
+  }
+  container.innerHTML = "";
+  container.appendChild(grid);
+}
+
+/* ---------- Large Files ---------- */
+let lastLargeFiles = null;
+
+async function loadLargeFiles() {
+  const list = document.getElementById("lf-list");
+  const summary = document.getElementById("lf-summary");
+  if (!list) return;
+  list.innerHTML = `<div class="q-empty">대용량 파일을 검색하는 중…</div>`;
+  summary.textContent = "";
+  try {
+    const minMb = document.getElementById("lf-min-mb")?.value || "50";
+    const data = await api(`/api/large-files?min_mb=${minMb}`);
+    lastLargeFiles = data;
+    renderLargeFiles(data);
+  } catch (e) {
+    list.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderLargeFiles(data) {
+  const list = document.getElementById("lf-list");
+  const summary = document.getElementById("lf-summary");
+  if (!list) return;
+  summary.textContent = `${data.count}개 파일 · 총 ${data.total_human} (최소 크기 ${data.min_human})`;
+  if (!data.files.length) {
+    list.innerHTML = `<div class="q-empty">${data.min_human} 이상의 대용량 파일을 찾지 못했습니다.</div>`;
+    return;
+  }
+  list.innerHTML = "";
+  for (const f of data.files) {
+    const el = document.createElement("div");
+    el.className = "lf-item";
+    el.innerHTML = `
+      <span class="lf-icon" aria-hidden="true">${f.kind_icon || "📁"}</span>
+      <span class="entry-main">
+        <span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.name)}</span>
+        <span class="entry-reason">${escapeHtml(f.path)}</span>
+      </span>
+      <span class="entry-size">${f.allocated_human}</span>`;
+    list.appendChild(el);
+  }
+}
+
+/* ---------- Browser & Mail Caches ---------- */
+let lastBrowserCaches = null;
+
+async function loadBrowserCaches() {
+  const list = document.getElementById("bc-list");
+  const summary = document.getElementById("bc-summary");
+  if (!list) return;
+  list.innerHTML = `<div class="q-empty">브라우저 및 메일 캐시를 분석하는 중…</div>`;
+  summary.textContent = "";
+  try {
+    const data = await api("/api/browser-caches");
+    lastBrowserCaches = data;
+    renderBrowserCaches(data);
+  } catch (e) {
+    list.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderBrowserCaches(data) {
+  const list = document.getElementById("bc-list");
+  const summary = document.getElementById("bc-summary");
+  if (!list) return;
+  const allItems = [...(data.browsers || []), ...(data.mail || [])];
+  summary.textContent = `${allItems.length}개 항목 · 총 ${data.total_human || '0 B'} 정리 가능`;
+  if (!allItems.length) {
+    list.innerHTML = `<div class="q-empty">정리할 브라우저 또는 메일 캐시가 없습니다.</div>`;
+    return;
+  }
+  list.innerHTML = "";
+  for (const item of allItems) {
+    const el = document.createElement("div");
+    el.className = "bc-item";
+    const icon = item.browser === "Safari" ? "🌐" : item.browser === "Google Chrome" ? "🌐" : item.browser === "Mail" ? "✉️" : "🌐";
+    el.innerHTML = `
+      <span class="bc-icon" aria-hidden="true">${icon}</span>
+      <span class="entry-main">
+        <span class="entry-path" title="${escapeHtml(item.path)}">${escapeHtml(item.browser || item.category)} - ${escapeHtml(item.category)}</span>
+        <span class="entry-reason">${escapeHtml(item.path)}</span>
+      </span>
+      <span class="entry-size">${item.allocated_human}</span>`;
+    list.appendChild(el);
+  }
+}
+
+/* ---------- Automated Schedule ---------- */
+async function loadSchedule() {
+  try {
+    const data = await api("/api/schedule");
+    document.getElementById("sched-enabled").checked = !!data.enabled;
+    document.getElementById("sched-interval").value = String(data.interval_hours || 168);
+    document.getElementById("sched-auto-clean").checked = !!data.auto_quarantine_low_risk;
+    document.getElementById("sched-notify").checked = !!data.notify;
+    const status = document.getElementById("sched-status");
+    if (status) {
+      status.textContent = data.enabled
+        ? `현재 launchd 에이전트가 등록되어 있습니다 (${data.interval_hours}시간 주기).`
+        : "스케줄 자동 정리 기능이 비활성화되어 있습니다.";
+    }
+  } catch (_) {}
+}
+
+async function saveSchedule() {
+  const btn = document.getElementById("save-schedule-btn");
+  if (btn) btn.disabled = true;
+  try {
+    const payload = {
+      enabled: document.getElementById("sched-enabled").checked,
+      interval_hours: parseInt(document.getElementById("sched-interval").value, 10),
+      auto_quarantine_low_risk: document.getElementById("sched-auto-clean").checked,
+      notify: document.getElementById("sched-notify").checked,
+    };
+    const res = await api("/api/schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    toast(res.enabled ? "스케줄을 저장하고 launchd 백그라운드 에이전트를 등록했습니다." : "스케줄 자동 정리를 비활성화했습니다.", "ok");
+    await loadSchedule();
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 function switchView(view) {
   document.querySelectorAll(".nav-item").forEach((b) => {
     const active = b.dataset.view === view;
@@ -1043,13 +1297,73 @@ function switchView(view) {
   });
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.getElementById("view-" + view).classList.add("active");
+  if (view === "spacetree" && !currentTreePath) loadSpaceTree();
+  if (view === "largefiles" && !lastLargeFiles) loadLargeFiles();
+  if (view === "browsercache" && !lastBrowserCaches) loadBrowserCaches();
+  if (view === "schedule") loadSchedule();
   if (view === "quarantine") loadQuarantine();
   if (view === "duplicates") renderDuplicates();
   if (view === "apps" && !lastApps) loadApps();
   if (view === "diagnostics") loadDiagnostics();
 }
 
+/* ---------- 첫 실행 온보딩 ---------- */
+const ONBOARD_KEY = "sk_onboarded";
+let obStep = 1;
+
+function showOnboardingStep(step) {
+  const root = document.getElementById("onboarding");
+  root.querySelectorAll(".ob-step").forEach((el) => {
+    el.hidden = Number(el.dataset.step) !== step;
+  });
+  root.querySelectorAll(".ob-dot").forEach((dot, index) => {
+    dot.classList.toggle("is-on", index === step - 1);
+  });
+  const next = document.getElementById("ob-next");
+  next.textContent = step === 3 ? t("시작하기") : t("다음");
+}
+
+function closeOnboarding() {
+  localStorage.setItem(ONBOARD_KEY, "1");
+  document.getElementById("onboarding").hidden = true;
+}
+
+function initOnboarding() {
+  const root = document.getElementById("onboarding");
+  if (!root) return;
+  document.getElementById("ob-skip").addEventListener("click", closeOnboarding);
+  document.getElementById("ob-next").addEventListener("click", () => {
+    if (obStep >= 3) {
+      closeOnboarding();
+      return;
+    }
+    obStep += 1;
+    showOnboardingStep(obStep);
+  });
+  document.getElementById("ob-open-settings").addEventListener("click", (event) =>
+    openSystemSettings(event.currentTarget),
+  );
+  if (!localStorage.getItem(ONBOARD_KEY)) {
+    root.hidden = false;
+    showOnboardingStep(1);
+  }
+}
+
+function initLangSwitch() {
+  const current = window.SKI18N ? window.SKI18N.currentLang() : "ko";
+  document.querySelectorAll(".lang-btn").forEach((button) => {
+    button.classList.toggle("is-on", button.dataset.lang === current);
+    button.addEventListener("click", () => {
+      if (button.dataset.lang === current) return;
+      window.SKI18N.setLang(button.dataset.lang);
+    });
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  initLangSwitch();
+  initOnboarding();
+  startSystemMonitor();
   document.getElementById("preset").addEventListener("change", (e) => {
     document.getElementById("path-input").disabled = e.currentTarget.value !== "custom";
     updateScanCta();
@@ -1064,10 +1378,29 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("risk-filter").addEventListener("change", renderFilteredResults);
   document.getElementById("result-sort").addEventListener("change", renderFilteredResults);
   document.getElementById("select-low-risk").addEventListener("click", selectLowRisk);
+  document.getElementById("smart-clean-btn")?.addEventListener("click", smartClean);
 
-  const navOrder = ["dashboard", "duplicates", "apps", "quarantine", "diagnostics"];
+  document.getElementById("tree-load-btn")?.addEventListener("click", () => {
+    const p = document.getElementById("tree-path-input").value.trim();
+    loadSpaceTree(p);
+  });
+  document.getElementById("lf-scan-btn")?.addEventListener("click", loadLargeFiles);
+  document.getElementById("bc-scan-btn")?.addEventListener("click", loadBrowserCaches);
+  document.getElementById("save-schedule-btn")?.addEventListener("click", saveSchedule);
+
+  const shortcutModal = document.getElementById("shortcut-modal");
+  document.getElementById("close-shortcut-modal")?.addEventListener("click", () => shortcutModal?.close());
+
+  const navOrder = ["dashboard", "spacetree", "duplicates", "apps", "largefiles", "browsercache", "quarantine", "schedule", "diagnostics"];
   document.addEventListener("keydown", (e) => {
     const tag = document.activeElement?.tagName;
+    if (e.key === "?" || (e.key === "/" && (e.metaKey || e.ctrlKey))) {
+      if (tag !== "INPUT" && tag !== "SELECT") {
+        e.preventDefault();
+        shortcutModal?.showModal();
+        return;
+      }
+    }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
       const activeView = document.querySelector(".view.active")?.id;
       const search = activeView === "view-quarantine"
@@ -1083,8 +1416,12 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if ((e.metaKey || e.ctrlKey) && navOrder[Number(e.key) - 1]) {
       e.preventDefault();
       switchView(navOrder[Number(e.key) - 1]);
-    } else if (e.key === "Escape" && (tag === "INPUT" || tag === "SELECT")) {
-      document.activeElement.blur();
+    } else if (e.key === "Escape") {
+      if (shortcutModal?.open) {
+        shortcutModal.close();
+      } else if (tag === "INPUT" || tag === "SELECT") {
+        document.activeElement.blur();
+      }
     }
   });
   document.getElementById("export-scan").addEventListener("click", exportLastScan);

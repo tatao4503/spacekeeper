@@ -129,3 +129,31 @@ def render_text(result: ScanResult) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def render_html_report(result: ScanResult) -> str:
+    """ScanResult를 독립 실행 가능한 아름다운 HTML Audit 리포트로 렌더링한다."""
+    text_content = render_text(result)
+    date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Spacekeeper Audit Report - {date_str}</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0b0d12; color: #eef1f7; margin: 0; padding: 40px 20px; }}
+    .container {{ max-width: 800px; margin: 0 auto; background: #161a22; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }}
+    h1 {{ color: #5b8cff; margin-top: 0; font-size: 24px; }}
+    pre {{ background: #0c0e14; padding: 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.07); color: #a1b0cb; font-family: monospace; white-space: pre-wrap; font-size: 13px; line-height: 1.5; }}
+    .footer {{ margin-top: 24px; font-size: 12px; color: #6a7180; text-align: center; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🛡️ Spacekeeper Local Storage Audit Report</h1>
+    <p>생성 시각: {date_str}</p>
+    <pre>{text_content}</pre>
+    <div class="footer">Spacekeeper • Local Storage Care Agent for macOS</div>
+  </div>
+</body>
+</html>"""
