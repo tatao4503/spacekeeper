@@ -366,3 +366,33 @@ class FindLargeFilesRobustnessTests(unittest.TestCase):
             with mock.patch.object(os, "scandir", flaky_scandir):
                 result = find_large_files(root, min_bytes=1, limit=10)
             self.assertIsInstance(result["files"], list)
+
+
+class SpaceTreeRobustnessTests(unittest.TestCase):
+    """트리맵이 클라우드 폴더로 내려가 멈추지 않아야 한다."""
+
+    def test_marks_cloud_container_without_descending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cloud = root / "Library" / "CloudStorage"
+            (cloud / "Provider").mkdir(parents=True)
+            (cloud / "Provider" / "big.bin").write_bytes(b"x" * 4096)
+
+            def boom(path):
+                raise TimeoutError(60, "Operation timed out")
+
+            tree = scanner.build_space_tree(root, max_depth=4)
+
+            def find(node, name):
+                if node["name"] == name:
+                    return node
+                for child in node.get("children", []):
+                    hit = find(child, name)
+                    if hit:
+                        return hit
+                return None
+
+            node = find(tree, "CloudStorage")
+            self.assertIsNotNone(node, "CloudStorage 노드는 존재해야 한다")
+            self.assertEqual(node["skipped"], "cloud")
+            self.assertEqual(node["children"], [])

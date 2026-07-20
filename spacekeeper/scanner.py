@@ -709,6 +709,19 @@ def build_space_tree(
         raise FileNotFoundError(f"존재하지 않거나 접근할 수 없는 경로입니다: {resolved}")
 
     def _node(current: Path, depth: int) -> dict[str, object]:
+        # 클라우드 컨테이너로 내려가면 오프라인 파일을 받으려다 폴더마다
+        # 수십 초씩 멈춘다. 존재만 알리고 측정은 건너뛴다.
+        if _is_cloud_container(current):
+            return {
+                "name": current.name,
+                "path": str(current),
+                "kind": "cloud",
+                "allocated_bytes": 0,
+                "allocated_human": format_bytes(0),
+                "file_count": 0,
+                "children": [],
+                "skipped": "cloud",
+            }
         if current.is_file():
             try:
                 stat = current.stat(follow_symlinks=False)

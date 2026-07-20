@@ -432,6 +432,32 @@ def _register_apps(state: "_State", payload: dict) -> None:
     state.register("apps", pairs)
 
 
+def _register_photos(state: "_State", payload: dict) -> None:
+    """비슷한 사진의 각 파일에 action_id 를 붙이고 정리 대상으로 등록한다."""
+    pairs: list[tuple[str, str, str]] = []
+    for group in payload.get("groups", []):
+        for item in group.get("files", []):
+            action_id = _action_id("file", item["path"])
+            item["action_id"] = action_id
+            pairs.append((action_id, item["path"], "file"))
+    state.register("photos", pairs)
+
+
+def _register_startup(state: "_State", payload: dict) -> None:
+    """사용자 영역 자동 실행 항목만 격리(=끄기) 대상으로 등록한다.
+
+    시스템 항목은 홈 밖이라 engine 이 이동을 거부하므로 등록하지 않는다.
+    """
+    pairs: list[tuple[str, str, str]] = []
+    for item in payload.get("items", []):
+        if not item.get("manageable"):
+            continue
+        action_id = _action_id("file", item["path"])
+        item["action_id"] = action_id
+        pairs.append((action_id, item["path"], "file"))
+    state.register("startup", pairs)
+
+
 def _empty_selections(body: dict) -> dict[str, str]:
     raw_items = body.get("items")
     if not isinstance(raw_items, list) or not raw_items:
@@ -601,6 +627,30 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(payload)
         elif route.path == "/api/system-status":
             self._send_json(diagnostics.get_system_metrics())
+        elif route.path == "/api/similar-photos":
+            qs = parse_qs(route.query)
+            query_path = qs.get("path", [""])[0]
+            target = Path(query_path).expanduser() if query_path else Path.home()
+            min_kb = int(qs.get("min_kb", ["100"])[0])
+            try:
+                from .photos import find_similar_photos
+
+                payload = find_similar_photos(target, min_bytes=min_kb * 1024)
+            except (ValueError, OSError) as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            _register_photos(self.state, payload)
+            self._send_json(payload)
+        elif route.path == "/api/startup-items":
+            try:
+                from .startup import list_startup_items
+
+                payload = list_startup_items()
+            except (ValueError, OSError) as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            _register_startup(self.state, payload)
+            self._send_json(payload)
         elif route.path == "/api/large-files":
             qs = parse_qs(route.query)
             query_path = qs.get("path", [""])[0]

@@ -94,7 +94,8 @@ def _dir_stats(path: Path) -> tuple[int, int]:
                         file_count += 1
                     elif entry.is_dir(follow_symlinks=False):
                         _walk(Path(entry.path))
-        except PermissionError:
+        except OSError:
+            # 권한 거부뿐 아니라 네트워크 볼륨 타임아웃 등도 해당 폴더만 건너뛴다.
             pass
 
     _walk(path)
