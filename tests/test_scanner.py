@@ -13,7 +13,7 @@ from unittest import mock
 from spacekeeper import scanner
 from spacekeeper.models import ScanOptions
 from spacekeeper.report import format_bytes, render_text
-from spacekeeper.scanner import _allocated_size, scan
+from spacekeeper.scanner import _allocated_size, find_large_files, scan
 
 
 class ScannerTests(unittest.TestCase):
@@ -306,3 +306,63 @@ class ScannerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FindLargeFilesRobustnessTests(unittest.TestCase):
+    """대용량 파일 탐색이 클라우드 폴더·순회 오류에 멈추지 않아야 한다."""
+
+    def test_skips_cloud_container(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cloud = root / "Library" / "CloudStorage"
+            (cloud / "Provider").mkdir(parents=True)
+            (cloud / "Provider" / "big.bin").write_bytes(b"x" * 4096)
+            plain = root / "Docs"
+            plain.mkdir()
+            (plain / "big.bin").write_bytes(b"y" * 4096)
+
+            result = find_large_files(root, min_bytes=1, limit=10)
+            paths = [item["path"] for item in result["files"]]
+            self.assertTrue(any("Docs" in p for p in paths))
+            self.assertFalse(
+                any("CloudStorage" in p for p in paths),
+                "클라우드 컨테이너는 건너뛰어야 한다",
+            )
+
+    def test_iteration_error_does_not_abort_scan(self) -> None:
+        """순회 중 OSError 가 나도 나머지 결과는 반환된다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "keep").mkdir()
+            (root / "keep" / "big.bin").write_bytes(b"z" * 4096)
+
+            real_scandir = os.scandir
+
+            def flaky_scandir(path):
+                iterator = real_scandir(path)
+                if str(path).endswith("keep"):
+                    return iterator
+
+                class _Flaky:
+                    def __enter__(self_inner):
+                        return self_inner
+
+                    def __exit__(self_inner, *args):
+                        iterator.close()
+                        return False
+
+                    def __iter__(self_inner):
+                        return self_inner
+
+                    def __next__(self_inner):
+                        entry = next(iterator)
+                        if entry.name == "boom":
+                            raise TimeoutError(60, "Operation timed out")
+                        return entry
+
+                return _Flaky()
+
+            (root / "boom").mkdir()
+            with mock.patch.object(os, "scandir", flaky_scandir):
+                result = find_large_files(root, min_bytes=1, limit=10)
+            self.assertIsInstance(result["files"], list)

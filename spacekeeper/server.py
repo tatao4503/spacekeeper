@@ -612,7 +612,9 @@ class _Handler(BaseHTTPRequestHandler):
                 payload = find_large_files(
                     target, min_bytes=min_mb * 1024 * 1024, limit=limit
                 )
-            except (FileNotFoundError, PermissionError, ValueError) as exc:
+            # OSError 계열(네트워크 볼륨 타임아웃 등)까지 잡아, 응답 없이
+            # 연결이 끊기는 대신 이유를 돌려준다.
+            except (ValueError, OSError) as exc:
                 self._send_json({"error": str(exc)}, status=400)
                 return
             self._send_json(payload)

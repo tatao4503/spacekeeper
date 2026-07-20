@@ -838,37 +838,51 @@ def find_large_files(
     results: list[dict[str, object]] = []
 
     def _walk(directory: Path) -> None:
+        # 클라우드 컨테이너는 오프라인 파일을 내려받으려다 멈추거나 타임아웃한다.
+        # 일반 스캔과 같은 규칙으로 건너뛴다.
+        if _is_cloud_container(directory):
+            return
         try:
             entries = os.scandir(directory)
-        except (PermissionError, OSError):
+        except OSError:
             return
         with entries:
-            for entry in entries:
-                if entry.is_symlink():
-                    continue
-                if entry.is_dir(follow_symlinks=False):
-                    _walk(Path(entry.path))
-                elif entry.is_file(follow_symlinks=False):
-                    try:
-                        stat = entry.stat(follow_symlinks=False)
-                        blocks = getattr(stat, "st_blocks", None)
-                        allocated = blocks * 512 if blocks is not None else stat.st_size
-                    except OSError:
+            while True:
+                # 순회 도중에도 OSError(네트워크 볼륨 타임아웃 등)가 날 수 있으므로
+                # 해당 폴더만 포기하고 나머지 분석은 계속한다.
+                try:
+                    entry = next(entries, None)
+                except OSError:
+                    return
+                if entry is None:
+                    break
+                try:
+                    if entry.is_symlink():
                         continue
-                    if allocated >= min_bytes:
-                        suffix = Path(entry.name).suffix.lower()
-                        kind = _SUFFIX_TO_KIND.get(suffix, "other")
-                        results.append(
-                            {
-                                "name": entry.name,
-                                "path": entry.path,
-                                "kind": kind,
-                                "kind_icon": KIND_ICONS.get(kind, "📁"),
-                                "allocated_bytes": allocated,
-                                "allocated_human": format_bytes(allocated),
-                                "modified_at": stat.st_mtime,
-                            }
-                        )
+                    if entry.is_dir(follow_symlinks=False):
+                        _walk(Path(entry.path))
+                        continue
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                    stat = entry.stat(follow_symlinks=False)
+                    blocks = getattr(stat, "st_blocks", None)
+                    allocated = blocks * 512 if blocks is not None else stat.st_size
+                except OSError:
+                    continue
+                if allocated >= min_bytes:
+                    suffix = Path(entry.name).suffix.lower()
+                    kind = _SUFFIX_TO_KIND.get(suffix, "other")
+                    results.append(
+                        {
+                            "name": entry.name,
+                            "path": entry.path,
+                            "kind": kind,
+                            "kind_icon": KIND_ICONS.get(kind, "📁"),
+                            "allocated_bytes": allocated,
+                            "allocated_human": format_bytes(allocated),
+                            "modified_at": stat.st_mtime,
+                        }
+                    )
 
     _walk(resolved)
     results.sort(key=lambda item: item["allocated_bytes"], reverse=True)  # type: ignore[arg-type]
