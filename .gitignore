@@ -21,3 +21,6 @@ desktop/.sidecar-dist/
 desktop/src-tauri/binaries/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+
+# 구식 런처(Tauri 앱으로 대체)
+/Spacekeeper.app/
