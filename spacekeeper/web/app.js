@@ -1209,6 +1209,57 @@ function renderLargeFiles(data) {
   }
 }
 
+/* ---------- 결정 도우미 (전용 탭) ---------- */
+let lastDecide = null;
+
+async function loadDecide() {
+  const list = document.getElementById("decide-list");
+  const summary = document.getElementById("decide-summary");
+  const button = document.getElementById("decide-scan");
+  const minMb = document.getElementById("decide-min-mb").value;
+  list.innerHTML = `<div class="q-empty">파일을 모으는 중…</div>`;
+  summary.textContent = "";
+  button.disabled = true;
+  try {
+    const data = await api(`/api/large-files?min_mb=${minMb}`);
+    lastDecide = data;
+    renderDecide(data);
+  } catch (e) {
+    list.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderDecide(data) {
+  const list = document.getElementById("decide-list");
+  const summary = document.getElementById("decide-summary");
+  summary.textContent =
+    `${data.count}개 파일 · 총 ${data.total_human} · 항목을 펼쳐 단서를 확인하세요`;
+  list.innerHTML = "";
+  if (!data.files.length) {
+    list.innerHTML = `<div class="q-empty">${data.min_human} 이상의 파일이 없습니다.</div>`;
+    return;
+  }
+  for (const f of data.files) {
+    const el = document.createElement("div");
+    el.className = "lf-item has-signals";
+    el.innerHTML = `
+      <button type="button" class="lf-head" aria-expanded="false">
+        <span class="lf-icon" aria-hidden="true">${f.kind_icon || "📁"}</span>
+        <span class="entry-main">
+          <span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.name)}</span>
+          <span class="entry-reason">${escapeHtml(f.path)}</span>
+        </span>
+        <span class="entry-size">${f.allocated_human}</span>
+        <span class="lf-caret" aria-hidden="true">›</span>
+      </button>
+      <div class="signal-slot" hidden></div>`;
+    wireSignalDisclosure(el, f.path);
+    list.appendChild(el);
+  }
+}
+
 /* ---------- 결정 단서 카드 (재사용) ---------- */
 const signalCache = new Map();
 
@@ -1395,6 +1446,7 @@ function switchView(view) {
   if (view === "diagnostics") loadDiagnostics();
   if (view === "startup") loadStartup();
   if (view === "photos" && !lastPhotos) loadPhotos();
+  if (view === "decide" && !lastDecide) loadDecide();
 }
 
 /* ---------- 비슷한 사진 ---------- */
@@ -1574,6 +1626,7 @@ function initLangSwitch() {
 document.addEventListener("DOMContentLoaded", () => {
   initLangSwitch();
   initOnboarding();
+  document.getElementById("decide-scan").addEventListener("click", loadDecide);
   document.getElementById("photos-scan").addEventListener("click", loadPhotos);
   document.getElementById("startup-scan").addEventListener("click", loadStartup);
   document.getElementById("photos-reclaim").addEventListener("click", async (e) => {
@@ -1614,7 +1667,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const shortcutModal = document.getElementById("shortcut-modal");
   document.getElementById("close-shortcut-modal")?.addEventListener("click", () => shortcutModal?.close());
 
-  const navOrder = ["dashboard", "spacetree", "duplicates", "apps", "largefiles", "browsercache", "photos", "startup", "quarantine", "schedule", "diagnostics"];
+  const navOrder = ["dashboard", "spacetree", "duplicates", "apps", "largefiles", "browsercache", "decide", "photos", "startup", "quarantine", "schedule", "diagnostics"];
   const fromHash = location.hash.slice(1);
   if (navOrder.includes(fromHash)) switchView(fromHash);
 

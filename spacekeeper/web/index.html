@@ -40,6 +40,10 @@
         <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10" /></svg></span>
         <span>브라우저·메일</span>
       </button>
+      <button class="nav-item" type="button" data-view="decide" title="결정 도우미">
+        <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.9.4-1 1-1 1.7"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></span>
+        <span>결정 도우미</span>
+      </button>
       <button class="nav-item" type="button" data-view="photos" title="비슷한 사진">
         <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="2" /><path d="m5 17 5-4 3 2 3-3 3 3" /></svg></span>
         <span>비슷한 사진</span>
@@ -354,6 +358,31 @@
         <button id="startup-reclaim" class="btn primary" type="button">선택 항목 끄기</button>
       </div>
       <div id="startup-list" class="quarantine-list"></div>
+    </section>
+
+    <!-- 결정 도우미 -->
+    <section id="view-decide" class="view">
+      <header class="page-header compact">
+        <div>
+          <div class="eyebrow"><span></span> DECISION HELPER</div>
+          <h1>결정 도우미</h1>
+          <p>지울지 말지 애매한 큰 파일을 모았습니다. 항목을 펼치면 출처·마지막 사용·복사본 같은 단서가 보입니다. 판단은 직접 하세요.</p>
+        </div>
+        <div class="spacer"></div>
+        <div class="tree-controls">
+          <label class="field"><span class="field-label">최소 크기</span>
+            <select id="decide-min-mb">
+              <option value="50">50 MB</option>
+              <option value="100" selected>100 MB</option>
+              <option value="500">500 MB</option>
+              <option value="1000">1 GB</option>
+            </select>
+          </label>
+          <button id="decide-scan" class="btn primary" type="button">파일 모으기</button>
+        </div>
+      </header>
+      <div id="decide-summary" class="summary-pill" aria-live="polite"></div>
+      <div id="decide-list" class="lf-list category-list"></div>
     </section>
 
     <!-- 격리함 -->
