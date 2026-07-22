@@ -1043,3 +1043,43 @@ kbd {
 }
 .lang-btn:hover { color: var(--text); }
 .lang-btn.is-on { background: var(--accent-soft); color: var(--accent); }
+
+/* ============================================================
+   결정 단서 카드
+   ============================================================ */
+.lf-item.has-signals { display: block; padding: 0; overflow: hidden; }
+.lf-head {
+  display: flex; align-items: center; gap: 13px; width: 100%;
+  background: transparent; border: none; color: var(--text);
+  font-family: inherit; font-size: inherit; text-align: left;
+  padding: 13px 18px; cursor: pointer;
+}
+.lf-head:hover { background: var(--panel-2); }
+.lf-caret { color: var(--faint); transition: transform 0.2s; }
+.lf-item.signals-open .lf-caret { transform: rotate(90deg); }
+.signal-slot { border-top: 1px solid var(--line); }
+.signal-loading { padding: 16px 20px; color: var(--muted); font-size: 13px; }
+
+.signal-card { padding: 8px 20px 16px; }
+.signal-card-note {
+  font-size: 11.5px; color: var(--accent); margin: 8px 0 12px;
+  padding: 8px 11px; background: var(--accent-soft);
+  border-radius: 9px; border: 1px solid var(--accent-line);
+}
+.sig-row {
+  display: grid; grid-template-columns: 22px 130px 1fr;
+  align-items: baseline; gap: 4px 10px;
+  padding: 9px 0; border-top: 1px solid var(--line);
+}
+.sig-row:first-of-type { border-top: none; }
+.sig-icon { color: var(--faint); font-size: 13px; text-align: center; }
+.sig-label { color: var(--muted); font-size: 12.5px; }
+.sig-value { color: var(--text); font-size: 13px; font-weight: 560; }
+.sig-detail {
+  grid-column: 3; color: var(--faint); font-size: 11.5px; margin-top: 3px; line-height: 1.5;
+}
+.sig-path {
+  font-family: ui-monospace, "SF Mono", monospace; font-size: 11px;
+  color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-top: 2px;
+}

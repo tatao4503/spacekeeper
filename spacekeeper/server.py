@@ -641,6 +641,20 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             _register_photos(self.state, payload)
             self._send_json(payload)
+        elif route.path == "/api/file-signals":
+            qs = parse_qs(route.query)
+            target = qs.get("path", [""])[0]
+            if not target:
+                self._send_json({"error": "경로가 필요합니다."}, status=400)
+                return
+            try:
+                from .signals import collect_signals
+
+                payload = collect_signals(target)
+            except Exception as exc:  # SignalError 포함 — 읽기 전용이라 안전
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            self._send_json(payload)
         elif route.path == "/api/startup-items":
             try:
                 from .startup import list_startup_items

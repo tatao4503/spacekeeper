@@ -1192,16 +1192,103 @@ function renderLargeFiles(data) {
   list.innerHTML = "";
   for (const f of data.files) {
     const el = document.createElement("div");
-    el.className = "lf-item";
+    el.className = "lf-item has-signals";
     el.innerHTML = `
-      <span class="lf-icon" aria-hidden="true">${f.kind_icon || "📁"}</span>
-      <span class="entry-main">
-        <span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.name)}</span>
-        <span class="entry-reason">${escapeHtml(f.path)}</span>
-      </span>
-      <span class="entry-size">${f.allocated_human}</span>`;
+      <button type="button" class="lf-head" aria-expanded="false">
+        <span class="lf-icon" aria-hidden="true">${f.kind_icon || "📁"}</span>
+        <span class="entry-main">
+          <span class="entry-path" title="${escapeHtml(f.path)}">${escapeHtml(f.name)}</span>
+          <span class="entry-reason">${escapeHtml(f.path)}</span>
+        </span>
+        <span class="entry-size">${f.allocated_human}</span>
+        <span class="lf-caret" aria-hidden="true">›</span>
+      </button>
+      <div class="signal-slot" hidden></div>`;
+    wireSignalDisclosure(el, f.path);
     list.appendChild(el);
   }
+}
+
+/* ---------- 결정 단서 카드 (재사용) ---------- */
+const signalCache = new Map();
+
+function wireSignalDisclosure(container, path) {
+  const head = container.querySelector(".lf-head, .cat-head, .signal-trigger");
+  const slot = container.querySelector(".signal-slot");
+  if (!head || !slot) return;
+  head.addEventListener("click", async () => {
+    const open = container.classList.toggle("signals-open");
+    head.setAttribute("aria-expanded", String(open));
+    slot.hidden = !open;
+    if (!open || slot.dataset.loaded) return;
+    slot.innerHTML = `<div class="signal-loading">단서를 모으는 중…</div>`;
+    try {
+      const data = signalCache.get(path)
+        || await api(`/api/file-signals?path=${encodeURIComponent(path)}`);
+      signalCache.set(path, data);
+      slot.innerHTML = renderSignalCard(data);
+      slot.dataset.loaded = "1";
+    } catch (e) {
+      slot.innerHTML = `<div class="signal-loading">${escapeHtml(e.message)}</div>`;
+    }
+  });
+}
+
+function signalHost(url) {
+  try {
+    if (url.startsWith("blob:")) url = url.slice(5);
+    return new URL(url).hostname || url;
+  } catch {
+    return url;
+  }
+}
+
+function renderSignalCard(s) {
+  const rows = [];
+  // 출처
+  if (s.sources && s.sources.length) {
+    const hosts = [...new Set(s.sources.map(signalHost))].join(", ");
+    rows.push(sigRow("⬇︎", "받은 곳", escapeHtml(hosts), "이 위치에서 다시 받을 수 있습니다"));
+  } else {
+    rows.push(sigRow("⬇︎", "받은 곳", "기록 없음", "다운로드 출처 정보가 없습니다"));
+  }
+  // 마지막 사용
+  if (s.has_open_record) {
+    rows.push(sigRow("👁", "마지막으로 연 날짜", escapeHtml(s.last_used_label), ""));
+  } else {
+    rows.push(sigRow("👁", "마지막으로 연 날짜", "열람 기록 없음", "macOS에 이 파일의 열람 기록이 남아 있지 않습니다"));
+  }
+  // 추가/수정
+  rows.push(sigRow("＋", "이 Mac에 추가", escapeHtml(s.added_label || "알 수 없음"),
+    s.modified_label ? `수정: ${escapeHtml(s.modified_label)}` : ""));
+  // 로컬 복사본
+  if (s.local_copy_count > 0) {
+    const list = s.local_copies.map((p) => `<div class="sig-path">${escapeHtml(p)}</div>`).join("");
+    rows.push(sigRow("⧉", "다른 곳의 복사본", `${s.local_copy_count}개 (내용 동일)`, list));
+  } else {
+    rows.push(sigRow("⧉", "다른 곳의 복사본", "찾지 못함",
+      "같은 이름의 복사본을 찾지 못했습니다 (이름이 다른 복사본은 확인하지 못합니다)"));
+  }
+  // 클라우드
+  if (s.cloud_match_count > 0) {
+    rows.push(sigRow("☁", "클라우드", `이름·크기가 같은 파일 ${s.cloud_match_count}개`,
+      "내용까지 대조하지는 않았습니다"));
+  }
+  return `
+    <div class="signal-card">
+      <div class="signal-card-note">Spacekeeper는 판단하지 않습니다. 아래 사실만 보고 직접 결정하세요.</div>
+      ${rows.join("")}
+    </div>`;
+}
+
+function sigRow(icon, label, value, detail) {
+  return `
+    <div class="sig-row">
+      <span class="sig-icon" aria-hidden="true">${icon}</span>
+      <span class="sig-label">${label}</span>
+      <span class="sig-value">${value}</span>
+      ${detail ? `<span class="sig-detail">${detail}</span>` : ""}
+    </div>`;
 }
 
 /* ---------- Browser & Mail Caches ---------- */
