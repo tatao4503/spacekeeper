@@ -1146,3 +1146,131 @@ body {
 .badge.low { color: #30d158; }
 .badge.medium { color: #ffb340; }
 .badge.high { color: #ff5a52; }
+
+/* ============================================================
+   iOS 느낌 리스타일 — 둥근 모서리 · 넉넉한 여백 · iOS 블루
+   (파일 끝 = 최우선 적용)
+   ============================================================ */
+:root {
+  --radius: 22px;
+  --radius-sm: 14px;
+  --bg: #000308;
+  --panel: #15171e;
+  --panel-2: #1d2029;
+  --accent: #0a84ff;            /* iOS 시스템 블루(다크) */
+  --accent-press: #409cff;
+  --accent-soft: rgba(10, 132, 255, 0.16);
+  --accent-line: rgba(10, 132, 255, 0.34);
+  --low: #30d158;
+  --medium: #ffd60a;
+  --high: #ff453a;
+}
+body {
+  letter-spacing: -0.015em;
+  background:
+    radial-gradient(58% 48% at 86% -14%, rgba(10, 132, 255, 0.16), transparent 60%),
+    radial-gradient(50% 44% at -6% 10%, rgba(120, 80, 255, 0.12), transparent 58%),
+    #000308;
+}
+
+/* 큰 타이틀 (iOS large title) */
+.page-header h1 { font-size: 33px; font-weight: 700; letter-spacing: -0.03em; }
+.page-header.compact h1 { font-size: 29px; }
+.eyebrow { letter-spacing: 0.06em; }
+
+/* 버튼 — iOS 필드/필 */
+.btn { border-radius: 13px; font-weight: 600; padding: 11px 18px; letter-spacing: -0.01em; }
+.btn.small { border-radius: 10px; padding: 7px 13px; }
+.btn.primary { background: var(--accent); box-shadow: 0 6px 16px rgba(10, 132, 255, 0.3); }
+.btn.primary:hover:not(:disabled) { background: var(--accent-press); }
+.btn.big { border-radius: 15px; padding: 14px 26px; }
+
+/* 입력 · 셀렉트 — 둥글고 넉넉 */
+.tool-input, #preset, .tool-select, #path-input, .exclude-input {
+  border-radius: 12px; padding: 12px 14px; font-size: 14px;
+  background: var(--panel-2); border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 카드 — iOS 그룹 셀 느낌 (더 둥글게) */
+.card, .hero, .scan-shell, .q-item, .diagnostics-overview,
+.scan-progress-card, .diagnostics-help, .diag-card {
+  border-radius: 22px;
+}
+.card { background: linear-gradient(180deg, #191c24, var(--panel)); }
+
+/* 리스트 행 — 넉넉한 iOS 셀 높이 + 헤어라인 */
+.cat-head, .app-head, .lf-head { padding: 16px 20px; min-height: 58px; }
+.entry { padding: 14px 20px; }
+.entry, .cat-body .entry { border-top: 1px solid rgba(255, 255, 255, 0.055); }
+.q-item { padding: 16px 20px; }
+
+/* 사이드바 — iOS 선택 필 */
+.nav-item { border-radius: 12px; padding: 11px 12px; min-height: 42px; font-weight: 500; }
+.nav-item.active { box-shadow: 0 4px 12px rgba(10, 132, 255, 0.22); }
+
+/* 언어 스위치 → iOS 세그먼티드 컨트롤 */
+.lang-switch { border-radius: 13px; padding: 3px; background: var(--panel-2); }
+.lang-btn { border-radius: 10px; padding: 7px 4px; font-weight: 600; }
+.lang-btn.is-on {
+  background: linear-gradient(180deg, #2b3040, #23283400);
+  background-color: #2b3040; color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* 뱃지 — iOS 필 */
+.badge { border-radius: 999px; font-weight: 600; padding: 4px 11px; }
+
+/* 필/알약 요소 통일 */
+.privacy-pill, .summary-pill { border-radius: 999px; padding: 8px 13px; }
+
+/* 안전 카드 — 더 둥글게 */
+.safety-card { border-radius: 16px; padding: 14px; }
+
+/* 결정 단서 카드 iOS 정렬감 */
+.signal-card-note { border-radius: 12px; }
+
+/* iOS 커스텀 셀렉트 (기본 화살표 제거 + 자체 셰브론) */
+.tool-select, #preset, .lf-min-select, #lf-min-mb, #decide-min-mb, #tree-path-input,
+select.tool-select {
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b93a3' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat; background-position: right 13px center;
+  padding-right: 36px; cursor: pointer;
+}
+select::-ms-expand { display: none; }
+
+/* iOS 블루 체크박스 */
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 19px; height: 19px;
+}
+
+/* 검색 입력 — iOS 라운드 필드 */
+input[type="search"].tool-input {
+  border-radius: 999px; padding-left: 16px;
+}
+
+/* results-tools 정렬 여유 */
+.results-tools { gap: 9px; align-items: center; }
+.tool-note { color: var(--faint); font-size: 12.5px; }
+
+/* 셀렉트 옵션 다크 (드롭다운 열렸을 때) */
+.tool-select option, #preset option { background: var(--panel); color: var(--text); }
+
+/* iOS 토글 스위치 (설정 항목) */
+.chk-label { display: flex; align-items: center; gap: 12px; }
+.chk-label input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 46px; height: 28px; border-radius: 999px; flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.15); position: relative; cursor: pointer;
+  transition: background 0.22s ease; margin: 0;
+}
+.chk-label input[type="checkbox"]::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 24px; height: 24px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  transition: transform 0.22s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.chk-label input[type="checkbox"]:checked { background: #30d158; }
+.chk-label input[type="checkbox"]:checked::after { transform: translateX(18px); }
+.chk-label input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
