@@ -1056,7 +1056,7 @@ async function smartClean() {
   }
   const button = document.getElementById("smart-clean-btn");
   const bytes = bytesForIds(ids);
-  const out = await reclaimIds(ids, button, "⚡ 쾌속 1-클릭 정리", bytes);
+  const out = await reclaimIds(ids, button, "안전 항목 바로 정리", bytes);
   if (out) {
     selDash.clear();
     await runScan();
@@ -1397,8 +1397,8 @@ async function loadSchedule() {
     const status = document.getElementById("sched-status");
     if (status) {
       status.textContent = data.enabled
-        ? `현재 launchd 에이전트가 등록되어 있습니다 (${data.interval_hours}시간 주기).`
-        : "스케줄 자동 정리 기능이 비활성화되어 있습니다.";
+        ? `자동 정리가 켜져 있어요 · ${data.interval_hours}시간마다 실행됩니다.`
+        : "자동 정리가 꺼져 있어요.";
     }
   } catch (_) {}
 }
@@ -1418,7 +1418,7 @@ async function saveSchedule() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    toast(res.enabled ? "스케줄을 저장하고 launchd 백그라운드 에이전트를 등록했습니다." : "스케줄 자동 정리를 비활성화했습니다.", "ok");
+    toast(res.enabled ? "자동 정리를 켰어요. 정해진 주기에 백그라운드에서 실행됩니다." : "자동 정리를 껐어요.", "ok");
     await loadSchedule();
   } catch (e) {
     toast(e.message, "err");

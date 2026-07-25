@@ -278,7 +278,7 @@ body {
 .btn.big { padding: 12px 24px; font-size: 14px; border-radius: 11px; }
 
 /* Empty / scanning */
-.empty-state { position: relative; text-align: center; padding: 58px 20px 76px; }
+.empty-state { position: relative; text-align: center; padding: 34px 20px 44px; }
 .empty-state::before {
   content: ""; position: absolute; width: 420px; height: 260px; left: 50%; top: 40px;
   transform: translateX(-50%); background: radial-gradient(circle, var(--accent-soft), transparent 68%);
@@ -1274,3 +1274,21 @@ input[type="search"].tool-input {
 .chk-label input[type="checkbox"]:checked { background: #30d158; }
 .chk-label input[type="checkbox"]:checked::after { transform: translateX(18px); }
 .chk-label input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* 모든 셀렉트를 하나의 iOS 다크 드롭다운으로 통일 (개별 지정 안 된 것까지) */
+select {
+  appearance: none; -webkit-appearance: none;
+  background-color: var(--panel-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 38px 12px 14px;
+  font: inherit; font-size: 14px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b93a3' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat; background-position: right 14px center;
+}
+select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+select:hover { border-color: rgba(255, 255, 255, 0.16); }
+select option { background: var(--panel); color: var(--text); }
+select::-ms-expand { display: none; }
