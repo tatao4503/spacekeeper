@@ -1083,3 +1083,66 @@ kbd {
   color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   margin-top: 2px;
 }
+
+/* ============================================================
+   사이드바 그룹핑 (제품형 내비게이션)
+   ============================================================ */
+.sidebar { overflow-y: auto; }                 /* 항목 많아 넘칠 때 스크롤 */
+.sidebar::-webkit-scrollbar { width: 0; }       /* 스크롤바 숨김 */
+.nav { gap: 0; }
+.nav-group { display: flex; flex-direction: column; gap: 3px; }
+.nav-group + .nav-group { margin-top: 15px; }
+.nav-group-label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em;
+  color: var(--faint); text-transform: uppercase;
+  padding: 0 12px 5px; user-select: none;
+}
+/* 좁은 화면: 그룹 해체하고 항목만 가로 스크롤 */
+@media (max-width: 900px) {
+  .nav-group { display: contents; }
+  .nav-group-label { display: none; }
+}
+
+/* ============================================================
+   다크 프리미엄 강제 (시스템 테마와 무관하게 항상 다크)
+   — @media(dark)에만 있던 규칙을 무조건 재적용
+   ============================================================ */
+:root {
+  --bg: #0b0d12;
+  --panel: #161a22;
+  --panel-2: #1b202a;
+  --sidebar: rgba(12, 14, 20, 0.82);
+  --text: #eef1f7;
+  --muted: #99a1b1;
+  --faint: #6a7180;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --accent: #5b8cff;
+  --accent-press: #7aa2ff;
+  --accent-soft: rgba(91, 140, 255, 0.15);
+  --accent-line: rgba(91, 140, 255, 0.30);
+  --low: #30d158;
+  --medium: #ffb340;
+  --high: #ff5a52;
+  --track: rgba(255, 255, 255, 0.08);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 18px 46px rgba(0, 0, 0, 0.52);
+  --shadow-lift: 0 26px 64px rgba(0, 0, 0, 0.6);
+}
+body {
+  background:
+    radial-gradient(62% 52% at 84% -12%, rgba(91, 140, 255, 0.18), transparent 60%),
+    radial-gradient(52% 46% at -6% 12%, rgba(139, 70, 239, 0.14), transparent 58%),
+    var(--bg);
+}
+.card {
+  background: linear-gradient(180deg, #1a1f2a, var(--panel));
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.card:hover { border-color: rgba(255, 255, 255, 0.15); }
+.nav-item:hover { background: rgba(255, 255, 255, 0.06); }
+.nav-item.active { color: #e2ebff; }
+.nav-item.active .nav-ico { color: #9db8ff; }
+.badge.low { color: #30d158; }
+.badge.medium { color: #ffb340; }
+.badge.high { color: #ff5a52; }

@@ -1667,7 +1667,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const shortcutModal = document.getElementById("shortcut-modal");
   document.getElementById("close-shortcut-modal")?.addEventListener("click", () => shortcutModal?.close());
 
-  const navOrder = ["dashboard", "spacetree", "duplicates", "apps", "largefiles", "browsercache", "decide", "photos", "startup", "quarantine", "schedule", "diagnostics"];
+  const navOrder = ["dashboard", "spacetree", "largefiles", "duplicates", "photos", "decide", "apps", "browsercache", "startup", "quarantine", "schedule", "diagnostics"];
   const fromHash = location.hash.slice(1);
   if (navOrder.includes(fromHash)) switchView(fromHash);
 
