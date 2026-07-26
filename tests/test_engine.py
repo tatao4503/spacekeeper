@@ -55,6 +55,30 @@ class EngineTests(unittest.TestCase):
         self.assertTrue((target / "file.bin").exists())
         self.assertEqual(len(engine.list_quarantine()), 0)
 
+    def test_recovers_when_protected_source_dir_left_empty(self) -> None:
+        # shutil.move가 내용은 격리함으로 옮겼지만, 보호된 원본 폴더를
+        # 지우지 못해 예외를 던지는 상황을 재현한다. 이동은 사실상 성공이므로
+        # 항목이 격리되고 복원까지 가능해야 한다.
+        target = self._make_dir("Library/Caches/com.example.app")
+        real_move = engine.shutil.move
+
+        def fake_move(src: str, dst: str) -> None:
+            real_move(src, dst)          # 내용은 정상적으로 대상에 옮겨짐
+            Path(src).mkdir()            # 원본은 빈 폴더로 남아 버림
+            raise PermissionError(1, "Operation not permitted")
+
+        with mock.patch.object(engine.shutil, "move", side_effect=fake_move):
+            outcome = engine.quarantine([("F-cache", str(target), "app_cache")])
+
+        self.assertEqual(len(outcome.moved), 1)
+        self.assertEqual(len(outcome.skipped), 0)
+        self.assertEqual(len(engine.list_quarantine()), 1)
+        self.assertFalse(engine.JOURNAL_PATH.exists())
+
+        restored = engine.restore("F-cache")
+        self.assertEqual(restored.status, "restored")
+        self.assertTrue((target / "file.bin").exists())
+
     def test_refuses_symlink_and_outside_home(self) -> None:
         real = self._make_dir("Desktop/real")
         link = self.home / "Desktop" / "link"

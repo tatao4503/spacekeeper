@@ -393,7 +393,20 @@ body {
 #selection-summary, #dup-selection, #apps-selection { font-weight: 500; font-size: 13.5px; }
 
 /* Category cards */
-.category-list, .apps-list, .dup-list { display: flex; flex-direction: column; gap: 12px; margin-top: 22px; }
+.category-list, .dup-list { display: flex; flex-direction: column; gap: 12px; margin-top: 22px; }
+/* 앱 목록 — 하나의 iOS 그룹 리스트 (확장형 행 + 헤어라인) */
+.apps-list {
+  display: flex; flex-direction: column; gap: 0; margin-top: 22px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; overflow: hidden; box-shadow: var(--shadow);
+}
+.apps-list > .card {
+  background: transparent; border: none; border-radius: 0;
+  border-bottom: 1px solid var(--line); box-shadow: none;
+}
+.apps-list > .card:last-child { border-bottom: none; }
+.apps-list > .card:hover { transform: none; box-shadow: none; border-color: transparent; border-bottom-color: var(--line); }
+.apps-list > .card.open { background: var(--panel-2); }
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1018,12 +1031,18 @@ kbd {
 }
 .ob-card {
   width: min(520px, 100%);
-  background: linear-gradient(180deg, #1b2130, var(--panel));
+  background: var(--panel);
   border: 1px solid var(--line-strong);
   border-radius: 22px;
   padding: 34px 34px 24px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 30px 80px rgba(17, 24, 39, 0.28);
   text-align: center;
+}
+@media (prefers-color-scheme: dark) {
+  .ob-card {
+    background: linear-gradient(180deg, #1b2130, var(--panel));
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  }
 }
 .ob-visual { display: flex; justify-content: center; margin-bottom: 22px; }
 .ob-orb {

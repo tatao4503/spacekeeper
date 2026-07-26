@@ -325,17 +325,34 @@ def _commit_move(
     try:
         shutil.move(str(source), str(destination))
     except OSError as exc:
-        if os.path.lexists(source) and not os.path.lexists(destination):
+        # shutil.move는 디렉터리를 복사한 뒤 원본을 지우는데, 원본이
+        # macOS 보호 폴더(예: ~/Library/Caches)면 내용은 모두 옮겨졌는데도
+        # 비어 버린 원본 폴더를 지우지 못해 예외가 날 수 있다. 이때 대상이
+        # 존재하고 원본이 비어 있으면 이동 자체는 성공한 것으로 본다.
+        recovered = False
+        if os.path.lexists(destination) and os.path.isdir(source):
             try:
-                _clear_journal()
-            except OSError as cleanup_exc:
-                raise EngineRecoveryError(
-                    f"이동 실패 후 journal을 정리하지 못했습니다: {cleanup_exc}"
-                ) from cleanup_exc
-            raise
-        raise EngineRecoveryError(
-            f"{operation} 이동 중 파일 상태가 불명확해졌습니다: {exc}"
-        ) from exc
+                source_empty = not os.listdir(source)
+            except OSError:
+                source_empty = False
+            if source_empty:
+                try:
+                    os.rmdir(source)
+                except OSError:
+                    pass  # 상위가 보호돼 못 지워도 내용은 이미 격리됨
+                recovered = True
+        if not recovered:
+            if os.path.lexists(source) and not os.path.lexists(destination):
+                try:
+                    _clear_journal()
+                except OSError as cleanup_exc:
+                    raise EngineRecoveryError(
+                        f"이동 실패 후 journal을 정리하지 못했습니다: {cleanup_exc}"
+                    ) from cleanup_exc
+                raise
+            raise EngineRecoveryError(
+                f"{operation} 이동 중 파일 상태가 불명확해졌습니다: {exc}"
+            ) from exc
 
     records.append(final_record)
     try:
