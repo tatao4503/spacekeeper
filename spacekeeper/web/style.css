@@ -758,15 +758,15 @@ body {
    ============================================================ */
 .hero {
   position: relative; overflow: hidden;
-  border: none; color: #fff;
-  background: linear-gradient(135deg, #2f6bf3 0%, #5a5cf0 46%, #8b46ef 100%);
-  box-shadow: 0 22px 54px rgba(78, 84, 226, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.08); color: #fff;
+  background: linear-gradient(152deg, #17386a 0%, #10294c 52%, #0b1c34 100%);
+  box-shadow: 0 20px 48px rgba(8, 30, 66, 0.5);
 }
 .hero::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background:
-    radial-gradient(60% 90% at 88% -10%, rgba(255, 255, 255, 0.28), transparent 60%),
-    radial-gradient(50% 80% at 8% 120%, rgba(255, 255, 255, 0.14), transparent 60%);
+    radial-gradient(58% 85% at 86% -12%, rgba(10, 132, 255, 0.32), transparent 62%),
+    radial-gradient(46% 70% at 6% 118%, rgba(94, 148, 255, 0.12), transparent 60%);
 }
 .hero > * { position: relative; z-index: 1; }
 .hero-eyebrow { color: rgba(255, 255, 255, 0.82); }
@@ -776,7 +776,7 @@ body {
 }
 .donut-track { stroke: rgba(255, 255, 255, 0.22); }
 .donut-used {
-  stroke: #fff; filter: drop-shadow(0 0 9px rgba(255, 255, 255, 0.72));
+  stroke: #eaf2ff; filter: drop-shadow(0 0 7px rgba(120, 175, 255, 0.55));
 }
 .donut-free { color: #fff; }
 .donut-label { color: rgba(255, 255, 255, 0.78); }
@@ -803,7 +803,7 @@ body {
   .badge.high { color: #ff5a52; }
   .nav-item:hover { background: rgba(255, 255, 255, 0.06); }
   .nav-item.active { box-shadow: 0 8px 22px rgba(91, 140, 255, 0.16); }
-  .hero { box-shadow: 0 26px 70px rgba(70, 60, 220, 0.42); }
+  .hero { box-shadow: 0 26px 66px rgba(6, 24, 54, 0.6); }
   ::-webkit-scrollbar { width: 12px; height: 12px; }
   ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.12); border-radius: 8px;
