@@ -146,6 +146,31 @@ function wireRevealButtons(root) {
     });
   });
 }
+function closeToolMenu() {
+  const pop = document.getElementById("tool-more-pop");
+  const btn = document.getElementById("tool-more");
+  if (pop) pop.hidden = true;
+  if (btn) btn.setAttribute("aria-expanded", "false");
+}
+
+function wireToolMenu() {
+  const btn = document.getElementById("tool-more");
+  const pop = document.getElementById("tool-more-pop");
+  if (!btn || !pop) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const open = pop.hidden;
+    pop.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("click", (e) => {
+    if (!pop.hidden && !pop.contains(e.target) && e.target !== btn) closeToolMenu();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeToolMenu();
+  });
+}
+
 function exportLastScan() {
   if (!lastScan) return;
   const now = new Date();
@@ -1703,7 +1728,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
-  document.getElementById("export-scan").addEventListener("click", exportLastScan);
+  document.getElementById("export-scan").addEventListener("click", (e) => {
+    closeToolMenu();
+    exportLastScan(e);
+  });
+  wireToolMenu();
 
   document.getElementById("reclaim-btn").addEventListener("click", async (e) => {
     const ids = [...selDash];

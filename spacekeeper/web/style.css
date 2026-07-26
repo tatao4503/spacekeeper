@@ -1,25 +1,25 @@
 :root {
-  --bg: #f2f4f8;
+  --bg: #eef1f6;
   --panel: #ffffff;
-  --panel-2: #f7f8fb;
-  --sidebar: rgba(248, 249, 252, 0.9);
-  --text: #191b20;
-  --muted: #626772;
-  --faint: #8c919c;
-  --line: rgba(25, 27, 32, 0.075);
-  --line-strong: rgba(25, 27, 32, 0.13);
-  --accent: #347ff2;
-  --accent-press: #246edc;
-  --accent-soft: rgba(52, 127, 242, 0.1);
-  --accent-line: rgba(52, 127, 242, 0.22);
+  --panel-2: #f3f5f9;
+  --sidebar: rgba(244, 246, 250, 0.92);
+  --text: #1c1c1e;
+  --muted: #656a74;
+  --faint: #9096a1;
+  --line: rgba(0, 0, 0, 0.08);
+  --line-strong: rgba(0, 0, 0, 0.14);
+  --accent: #007aff;
+  --accent-press: #0a6fe0;
+  --accent-soft: rgba(0, 122, 255, 0.12);
+  --accent-line: rgba(0, 122, 255, 0.28);
   --low: #34c759;
   --medium: #ff9f0a;
   --high: #ff3b30;
-  --track: rgba(0, 0, 0, 0.06);
-  --shadow: 0 1px 2px rgba(17, 24, 39, 0.025), 0 12px 34px rgba(17, 24, 39, 0.055);
-  --shadow-lift: 0 18px 48px rgba(17, 24, 39, 0.09);
-  --radius: 18px;
-  --radius-sm: 12px;
+  --track: rgba(0, 0, 0, 0.07);
+  --shadow: 0 1px 2px rgba(17, 24, 39, 0.04), 0 12px 30px rgba(17, 24, 39, 0.07);
+  --shadow-lift: 0 18px 44px rgba(17, 24, 39, 0.12);
+  --radius: 22px;
+  --radius-sm: 14px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -758,9 +758,16 @@ body {
    ============================================================ */
 .hero {
   position: relative; overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08); color: #fff;
-  background: linear-gradient(152deg, #17386a 0%, #10294c 52%, #0b1c34 100%);
-  box-shadow: 0 20px 48px rgba(8, 30, 66, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12); color: #fff;
+  background: linear-gradient(150deg, #2a8bff 0%, #0a68e6 54%, #0a4fc9 100%);
+  box-shadow: 0 20px 44px rgba(10, 90, 210, 0.32);
+}
+@media (prefers-color-scheme: dark) {
+  .hero {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: linear-gradient(152deg, #17386a 0%, #10294c 52%, #0b1c34 100%);
+    box-shadow: 0 20px 48px rgba(8, 30, 66, 0.5);
+  }
 }
 .hero::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -938,15 +945,23 @@ body {
 .leftover-tag.support { background: rgba(52, 199, 89, 0.15); color: var(--low); }
 
 /* Large Files, Browser Caches & Schedule Cards */
-.large-file-list, .browser-cache-list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
-.lf-item, .bc-item {
-  display: flex; align-items: center; gap: 14px;
+/* 대용량·브라우저 목록 — 하나의 iOS 그룹 리스트 (헤어라인 구분) */
+.large-file-list, .browser-cache-list {
+  display: flex; flex-direction: column; gap: 0; margin-top: 16px;
   background: var(--panel); border: 1px solid var(--line);
-  border-radius: 14px; padding: 14px 18px; box-shadow: var(--shadow);
-  transition: transform 0.14s, border-color 0.14s;
+  border-radius: 16px; overflow: hidden; box-shadow: var(--shadow);
 }
-.lf-item:hover, .bc-item:hover { transform: translateY(-1px); border-color: var(--line-strong); }
-.lf-icon, .bc-icon { font-size: 24px; flex-shrink: 0; width: 36px; text-align: center; }
+.lf-item, .bc-item {
+  display: flex; align-items: center; gap: 13px;
+  background: transparent; border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0; padding: 10px 16px; box-shadow: none;
+  transition: background 0.14s;
+}
+.large-file-list > .lf-item:last-child,
+.browser-cache-list > .bc-item:last-child { border-bottom: none; }
+.lf-item:hover, .bc-item:hover { transform: none; background: var(--panel-2); }
+.lf-icon, .bc-icon { font-size: 20px; flex-shrink: 0; width: 30px; text-align: center; }
 
 .schedule-card {
   padding: 24px; display: flex; flex-direction: column; gap: 20px; margin-top: 16px;
@@ -1104,9 +1119,9 @@ kbd {
 }
 
 /* ============================================================
-   다크 프리미엄 강제 (시스템 테마와 무관하게 항상 다크)
-   — @media(dark)에만 있던 규칙을 무조건 재적용
+   다크 테마 — 시스템이 다크일 때만 적용
    ============================================================ */
+@media (prefers-color-scheme: dark) {
 :root {
   --bg: #0b0d12;
   --panel: #161a22;
@@ -1146,6 +1161,7 @@ body {
 .badge.low { color: #30d158; }
 .badge.medium { color: #ffb340; }
 .badge.high { color: #ff5a52; }
+}
 
 /* ============================================================
    iOS 느낌 리스타일 — 둥근 모서리 · 넉넉한 여백 · iOS 블루
@@ -1154,23 +1170,35 @@ body {
 :root {
   --radius: 22px;
   --radius-sm: 14px;
-  --bg: #000308;
-  --panel: #15171e;
-  --panel-2: #1d2029;
-  --accent: #0a84ff;            /* iOS 시스템 블루(다크) */
-  --accent-press: #409cff;
-  --accent-soft: rgba(10, 132, 255, 0.16);
-  --accent-line: rgba(10, 132, 255, 0.34);
-  --low: #30d158;
-  --medium: #ffd60a;
-  --high: #ff453a;
 }
+body { letter-spacing: -0.015em; }
+/* iOS 라이트 배경 (기본) */
 body {
-  letter-spacing: -0.015em;
   background:
-    radial-gradient(58% 48% at 86% -14%, rgba(10, 132, 255, 0.16), transparent 60%),
-    radial-gradient(50% 44% at -6% 10%, rgba(120, 80, 255, 0.12), transparent 58%),
-    #000308;
+    radial-gradient(60% 50% at 88% -14%, rgba(0, 122, 255, 0.07), transparent 60%),
+    radial-gradient(52% 44% at -6% 8%, rgba(88, 86, 214, 0.05), transparent 58%),
+    var(--bg);
+}
+/* iOS 다크 팔레트 (시스템 다크일 때) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000308;
+    --panel: #15171e;
+    --panel-2: #1d2029;
+    --accent: #0a84ff;          /* iOS 시스템 블루(다크) */
+    --accent-press: #409cff;
+    --accent-soft: rgba(10, 132, 255, 0.16);
+    --accent-line: rgba(10, 132, 255, 0.34);
+    --low: #30d158;
+    --medium: #ffd60a;
+    --high: #ff453a;
+  }
+  body {
+    background:
+      radial-gradient(58% 48% at 86% -14%, rgba(10, 132, 255, 0.16), transparent 60%),
+      radial-gradient(50% 44% at -6% 10%, rgba(120, 80, 255, 0.12), transparent 58%),
+      #000308;
+  }
 }
 
 /* 큰 타이틀 (iOS large title) */
@@ -1188,7 +1216,7 @@ body {
 /* 입력 · 셀렉트 — 둥글고 넉넉 */
 .tool-input, #preset, .tool-select, #path-input, .exclude-input {
   border-radius: 12px; padding: 12px 14px; font-size: 14px;
-  background: var(--panel-2); border-color: rgba(255, 255, 255, 0.08);
+  background: var(--panel-2); border-color: var(--line);
 }
 
 /* 카드 — iOS 그룹 셀 느낌 (더 둥글게) */
@@ -1196,12 +1224,16 @@ body {
 .scan-progress-card, .diagnostics-help, .diag-card {
   border-radius: 22px;
 }
-.card { background: linear-gradient(180deg, #191c24, var(--panel)); }
+.card { background: var(--panel); }
+@media (prefers-color-scheme: dark) {
+  .card { background: linear-gradient(180deg, #191c24, var(--panel)); }
+}
 
 /* 리스트 행 — 넉넉한 iOS 셀 높이 + 헤어라인 */
-.cat-head, .app-head, .lf-head { padding: 16px 20px; min-height: 58px; }
+.cat-head { padding: 16px 20px; min-height: 58px; }
+.app-head, .lf-head { padding: 11px 16px; min-height: 48px; }
 .entry { padding: 14px 20px; }
-.entry, .cat-body .entry { border-top: 1px solid rgba(255, 255, 255, 0.055); }
+.entry, .cat-body .entry { border-top: 1px solid var(--line); }
 .q-item { padding: 16px 20px; }
 
 /* 사이드바 — iOS 선택 필 */
@@ -1212,9 +1244,14 @@ body {
 .lang-switch { border-radius: 13px; padding: 3px; background: var(--panel-2); }
 .lang-btn { border-radius: 10px; padding: 7px 4px; font-weight: 600; }
 .lang-btn.is-on {
-  background: linear-gradient(180deg, #2b3040, #23283400);
-  background-color: #2b3040; color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  background: #ffffff; color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+}
+@media (prefers-color-scheme: dark) {
+  .lang-btn.is-on {
+    background: #2b3040; color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
 }
 
 /* 뱃지 — iOS 필 */
@@ -1262,7 +1299,7 @@ input[type="search"].tool-input {
 .chk-label input[type="checkbox"] {
   appearance: none; -webkit-appearance: none;
   width: 46px; height: 28px; border-radius: 999px; flex: 0 0 auto;
-  background: rgba(255, 255, 255, 0.15); position: relative; cursor: pointer;
+  background: var(--line-strong); position: relative; cursor: pointer;
   transition: background 0.22s ease; margin: 0;
 }
 .chk-label input[type="checkbox"]::after {
@@ -1279,7 +1316,7 @@ input[type="search"].tool-input {
 select {
   appearance: none; -webkit-appearance: none;
   background-color: var(--panel-2);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
   color: var(--text);
   border-radius: 12px;
   padding: 12px 38px 12px 14px;
@@ -1289,6 +1326,24 @@ select {
   background-repeat: no-repeat; background-position: right 14px center;
 }
 select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-select:hover { border-color: rgba(255, 255, 255, 0.16); }
+select:hover { border-color: var(--line-strong); }
 select option { background: var(--panel); color: var(--text); }
 select::-ms-expand { display: none; }
+
+/* 결과 툴바 — 보조 작업 오버플로 메뉴 (⋯) */
+.tool-menu { position: relative; display: inline-flex; }
+.tool-more { padding: 10px 12px; }
+.tool-more svg { width: 20px; height: 20px; fill: currentColor; }
+.tool-menu-pop {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 40;
+  min-width: 172px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--line-strong);
+  border-radius: 14px; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tool-menu-item {
+  appearance: none; background: transparent; border: none; color: var(--text);
+  text-align: left; font: inherit; font-size: 13.5px;
+  padding: 10px 12px; border-radius: 9px; cursor: pointer;
+}
+.tool-menu-item:hover { background: var(--panel-2); }
