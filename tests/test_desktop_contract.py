@@ -12,6 +12,7 @@ TAURI_CONFIG = json.loads((TAURI_DIR / "tauri.conf.json").read_text())
 MAIN_RS = (TAURI_DIR / "src" / "main.rs").read_text()
 BUILD_SIDECAR = (DESKTOP / "build-sidecar.sh").read_text()
 FINALIZE_RELEASE = (DESKTOP / "finalize-macos-release.sh").read_text()
+BUILD_MACOS = (DESKTOP / "build-macos.sh").read_text()
 PACKAGE_JSON = json.loads((DESKTOP / "package.json").read_text())
 
 
@@ -41,10 +42,18 @@ class DesktopBundleContractTests(unittest.TestCase):
         self.assertIn("pyinstaller==6.21.0", (DESKTOP / "sidecar-requirements.txt").read_text())
 
     def test_release_build_seals_complete_app_and_verifies_dmg(self) -> None:
+        # 기본 build는 자가 치유 래퍼를 거치고, 기존 체인은 build:tauri로 보존한다.
+        self.assertEqual(PACKAGE_JSON["scripts"]["build"], "./build-macos.sh")
         self.assertEqual(
-            PACKAGE_JSON["scripts"]["build"],
+            PACKAGE_JSON["scripts"]["build:tauri"],
             "tauri build && ./finalize-macos-release.sh",
         )
+        # 래퍼는 번들 완성 후 메타데이터를 제거하고 ad-hoc 재서명한 뒤 finalize로 넘긴다.
+        self.assertIn("npx tauri build", BUILD_MACOS)
+        self.assertIn("xattr -cr", BUILD_MACOS)
+        self.assertIn("codesign --force --deep --sign -", BUILD_MACOS)
+        self.assertIn("codesign --verify --deep --strict", BUILD_MACOS)
+        self.assertIn("./finalize-macos-release.sh", BUILD_MACOS)
         self.assertIn("codesign --verify --deep --strict", FINALIZE_RELEASE)
         self.assertIn("hdiutil verify", FINALIZE_RELEASE)
         self.assertIn("--filesystem APFS", FINALIZE_RELEASE)
