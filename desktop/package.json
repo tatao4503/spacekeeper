@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "tauri": "tauri",
-    "build": "tauri build && ./finalize-macos-release.sh"
+    "build": "./build-macos.sh",
+    "build:tauri": "tauri build && ./finalize-macos-release.sh"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0"
