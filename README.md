@@ -6,7 +6,7 @@ Most cleaners ask you to trust a number and press a big button. Spacekeeper does
 the opposite: it explains why every item is a candidate, moves only what you
 picked into a quarantine folder, and lets you put it all back.
 
-[한국어 문서](README.ko.md)
+[한국어 문서](README.ko.md) · [사용설명서 (USER_GUIDE)](USER_GUIDE.html)
 
 ![Spacekeeper dashboard](docs/screenshots/dashboard.png)
 
