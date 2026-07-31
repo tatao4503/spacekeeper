@@ -201,14 +201,54 @@ function exportLastScan() {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   toast("분석 결과를 JSON 파일로 저장했습니다.", "ok");
 }
+const TR = (ko) => (window.t ? window.t(ko) : ko);
+const isEn = () => Boolean(window.SKI18N && window.SKI18N.currentLang() === "en");
+function countLine(n, bytes) {
+  return isEn() ? `${n} items · ${fmtBytes(bytes)}` : `${n}개 항목 · ${fmtBytes(bytes)}`;
+}
+
+/** OS confirm() 대신 앱 스타일의 확인 모달. boolean으로 resolve. */
+function confirmDialog({ title, body, count, confirmLabel, danger }) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("confirm-modal");
+    if (!modal || typeof modal.showModal !== "function") {
+      resolve(confirm(`${TR(title)}\n\n${count ? count + "\n\n" : ""}${TR(body)}`));
+      return;
+    }
+    modal.querySelector(".confirm-title").textContent = TR(title);
+    const countEl = modal.querySelector(".confirm-count");
+    countEl.textContent = count || "";
+    countEl.hidden = !count;
+    modal.querySelector(".confirm-body").textContent = TR(body);
+    const ok = modal.querySelector(".confirm-ok");
+    ok.textContent = TR(confirmLabel);
+    ok.classList.toggle("danger", Boolean(danger));
+    ok.classList.toggle("primary", !danger);
+    const cancel = modal.querySelector(".confirm-cancel");
+    let done = false;
+    const finish = (val) => {
+      if (done) return;
+      done = true;
+      ok.onclick = cancel.onclick = modal.onclose = null;
+      if (modal.open) modal.close();
+      resolve(val);
+    };
+    ok.onclick = () => finish(true);
+    cancel.onclick = () => finish(false);
+    modal.onclose = () => finish(false);
+    modal.showModal();
+    cancel.focus();
+  });
+}
+
 async function reclaimIds(ids, btn, label, selectedBytes = 0) {
   if (!ids.length) return null;
-  const sizeText = selectedBytes ? ` (${fmtBytes(selectedBytes)})` : "";
-  if (!confirm(
-    `선택한 ${ids.length}개 항목${sizeText}을 격리할까요?\n\n` +
-    "원래 위치에서 Spacekeeper 격리함으로 옮겨집니다. " +
-    "이 단계에서는 저장 공간이 늘지 않으며 언제든 복원할 수 있습니다."
-  )) return null;
+  if (!(await confirmDialog({
+    title: "선택 항목을 격리할까요?",
+    count: countLine(ids.length, selectedBytes),
+    body: "원래 위치에서 Spacekeeper 격리함으로 옮겨집니다. 저장 공간은 아직 늘지 않으며 언제든 복원할 수 있어요.",
+    confirmLabel: "격리하기",
+  }))) return null;
   if (btn) { btn.disabled = true; btn.textContent = "안전하게 격리하는 중…"; }
   try {
     const out = await api("/api/reclaim", {
@@ -920,10 +960,13 @@ async function emptyQuarantine() {
     (total, item) => total + item.allocated_bytes,
     0,
   );
-  if (!confirm(
-    `선택한 ${selected.length}개 항목 (${fmtBytes(selectedBytes)})을 macOS 휴지통으로 보낼까요?\n\n` +
-    "Finder에서 휴지통을 비우기 전까지는 복구할 수 있으며, 비운 뒤에야 실제 여유 공간이 늘어납니다."
-  )) return;
+  if (!(await confirmDialog({
+    title: "휴지통으로 보낼까요?",
+    count: countLine(selected.length, selectedBytes),
+    body: "Finder에서 휴지통을 비우기 전까지는 복구할 수 있으며, 비운 뒤에야 실제 여유 공간이 늘어납니다.",
+    confirmLabel: "휴지통으로 보내기",
+    danger: true,
+  }))) return;
   const button = document.getElementById("empty-q");
   button.disabled = true;
   button.textContent = "휴지통으로 보내는 중…";

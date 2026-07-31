@@ -512,6 +512,18 @@
     </div>
   </dialog>
 
+  <dialog id="confirm-modal" class="modal confirm-modal">
+    <div class="modal-content confirm-card" role="alertdialog" aria-labelledby="confirm-title">
+      <h2 id="confirm-title" class="confirm-title"></h2>
+      <p class="confirm-count" hidden></p>
+      <p class="confirm-body"></p>
+      <div class="confirm-actions">
+        <button type="button" class="btn ghost confirm-cancel">취소</button>
+        <button type="button" class="btn primary confirm-ok"></button>
+      </div>
+    </div>
+  </dialog>
+
   <div id="toast" class="toast" aria-atomic="true" hidden></div>
 
   <!-- 첫 실행 온보딩 -->

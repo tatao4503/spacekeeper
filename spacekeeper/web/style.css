@@ -998,6 +998,20 @@ body {
 }
 .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .modal-head h2 { margin: 0; font-size: 17px; }
+
+/* 인앱 확인 모달 */
+.confirm-card { width: 420px; max-width: calc(100vw - 40px); }
+.confirm-title { margin: 0 0 12px; font-size: 18px; font-weight: 680; letter-spacing: -0.02em; }
+.confirm-count {
+  margin: 0 0 10px; display: inline-block;
+  font-size: 12.5px; font-weight: 600; color: var(--accent);
+  background: var(--accent-soft); border-radius: 999px; padding: 5px 12px;
+  font-variant-numeric: tabular-nums;
+}
+.confirm-body { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.confirm-modal[open] .confirm-card { animation: confirm-pop 0.18s cubic-bezier(0.2, 1.1, 0.4, 1); }
+@keyframes confirm-pop { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .shortcut-list { display: flex; flex-direction: column; gap: 12px; }
 .sc-row { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
 .sc-row span { margin-left: auto; color: var(--text); }

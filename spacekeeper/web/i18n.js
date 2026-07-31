@@ -540,6 +540,15 @@ const EN = {
     "Re-extracted when you debug that device.",
   "사용자가 분석을 중단했습니다.": "Analysis was stopped by the user.",
   "잔여 파일": "Leftover file",
+
+  // 확인 모달
+  "취소": "Cancel",
+  "선택 항목을 격리할까요?": "Quarantine the selected items?",
+  "원래 위치에서 Spacekeeper 격리함으로 옮겨집니다. 저장 공간은 아직 늘지 않으며 언제든 복원할 수 있어요.":
+    "They move from their original location to Spacekeeper's Quarantine. Free space doesn't increase yet, and you can restore anytime.",
+  "격리하기": "Quarantine",
+  "휴지통으로 보낼까요?": "Move to Trash?",
+  "휴지통으로 보내기": "Move to Trash",
 };
 
 /**
@@ -603,8 +612,8 @@ const EN_PATTERNS = [
   [/^후보 (.+?)개$/, (m) => `${m[1]} candidates`],
   // 카테고리 소제목 · 스캔 버튼 라벨
   [/^(.+?)개 항목을 확인하세요$/, (m) => `Review ${m[1]} item(s)`],
-  [/^(.+?) 분석하기$/, (m) => `Analyze ${m[1]}`],
-  [/^(.+?) 저장 공간을 분석하는 중…$/, (m) => `Analyzing ${m[1]}…`],
+  [/^(.+?) 분석하기$/, (m) => `Analyze ${EN[m[1]] || m[1]}`],
+  [/^(.+?) 저장 공간을 분석하는 중…$/, (m) => `Analyzing ${EN[m[1]] || m[1]}…`],
   // 카테고리 헤더(라벨 · 개수 · 용량 · 위험도) — 위험도 라벨은 별도 노드가 아닐 때
   [/^(.+?) · (.+?)개 · (.+?) · (낮은 위험|확인 필요|높은 주의)$/,
     (m) => {
