@@ -37,6 +37,8 @@ const DIAGNOSTIC_GROUPS = [
   ["safety", "안전한 이동 경로", "격리와 휴지통 이동에 필요한 쓰기 권한"],
   ["environment", "앱 실행 환경", "런타임·Finder·로컬 서버 상태"],
 ];
+const API_TOKEN =
+  document.querySelector('meta[name="spacekeeper-api-token"]')?.content || "";
 
 let lastScan = null;
 let lastApps = null;
@@ -93,8 +95,15 @@ function wireDisclosure(card, selector) {
     trigger.setAttribute("aria-expanded", String(card.classList.contains("open")));
   });
 }
-async function api(path, opts) {
-  const res = await fetch(path, opts);
+async function api(path, opts = {}) {
+  const headers = new Headers(opts.headers || {});
+  headers.set("X-Spacekeeper-Token", API_TOKEN);
+  const res = await fetch(path, {
+    ...opts,
+    headers,
+    cache: "no-store",
+    credentials: "same-origin",
+  });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "요청을 처리하지 못했습니다");
   return data;
@@ -1465,7 +1474,9 @@ async function loadSchedule() {
     const status = document.getElementById("sched-status");
     if (status) {
       status.textContent = data.enabled
-        ? `자동 정리가 켜져 있어요 · ${data.interval_hours}시간마다 실행됩니다.`
+        ? data.agent_installed
+          ? `자동 정리가 켜져 있어요 · ${data.interval_hours}시간마다 실행됩니다.`
+          : "설정은 켜져 있지만 백그라운드 실행이 등록되지 않았어요. 다시 저장해주세요."
         : "자동 정리가 꺼져 있어요.";
     }
   } catch (_) {}
@@ -1481,6 +1492,15 @@ async function saveSchedule() {
       auto_quarantine_low_risk: document.getElementById("sched-auto-clean").checked,
       notify: document.getElementById("sched-notify").checked,
     };
+    if (
+      payload.enabled &&
+      payload.auto_quarantine_low_risk &&
+      !(await confirmDialog({
+        title: "자동 격리를 켤까요?",
+        body: "패키지 다운로드와 도구 캐시만 자동으로 격리합니다. 파일은 삭제되지 않으며 격리함에서 복원할 수 있어요.",
+        confirmLabel: "자동 격리 켜기",
+      }))
+    ) return;
     const res = await api("/api/schedule", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

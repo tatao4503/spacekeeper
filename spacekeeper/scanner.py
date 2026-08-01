@@ -71,6 +71,7 @@ CACHE_RULES = (
         "xcode_simulator",
         "Xcode 시뮬레이터 가상 기기 데이터와 런타임 저장소입니다.",
         "시뮬레이터에 설치된 임시 앱과 로컬 데이터가 초기화됩니다.",
+        risk="medium",
     ),
     CacheRule(
         ("Library", "Developer", "CoreSimulator", "Caches"),
@@ -912,4 +913,3 @@ def find_large_files(
         "total_bytes": total_bytes,
         "total_human": format_bytes(total_bytes),
     }
-

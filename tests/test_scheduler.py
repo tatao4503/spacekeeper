@@ -83,6 +83,17 @@ class ScheduleConfigTests(unittest.TestCase):
         self.assertTrue(cfg.notify)
         self.assertIsNone(cfg.last_run_at)
 
+    def test_from_dict_rejects_invalid_types_and_intervals(self) -> None:
+        for payload in (
+            {"enabled": "yes"},
+            {"interval_hours": 0},
+            {"interval_hours": True},
+            {"notify": 1},
+        ):
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValueError):
+                    scheduler.from_dict(payload)
+
     # -- run_scheduled ---------------------------------------------------------
 
     def test_run_scheduled_skips_when_disabled(self) -> None:
@@ -114,7 +125,12 @@ class ScheduleConfigTests(unittest.TestCase):
         fake_result = mock.Mock(
             file_candidate_count=1, cache_candidate_count=0, review_candidate_bytes=100
         )
-        fake_entry = mock.Mock(action_id="C-x", path="/tmp/x", kind="cache_directory")
+        fake_entry = mock.Mock(
+            action_id="C-x",
+            path="/tmp/x",
+            kind="cache_directory",
+            category="pip_cache",
+        )
         fake_plan = mock.Mock(entries=[fake_entry])
         fake_outcome = mock.Mock(moved=[fake_entry], quarantined_bytes=100)
         with mock.patch("spacekeeper.scanner.scan", return_value=fake_result), \
@@ -129,7 +145,54 @@ class ScheduleConfigTests(unittest.TestCase):
         self.assertEqual(build_plan.call_args.kwargs["risks"], {"low"})
         quarantine.assert_called_once_with([("C-x", "/tmp/x", "cache_directory")])
         self.assertEqual(result["quarantined"], 1)
-        self.assertEqual(result["freed_bytes"], 100)
+        self.assertEqual(result["quarantined_bytes"], 100)
+        self.assertEqual(result["disk_space_freed_bytes"], 0)
+
+    def test_run_scheduled_auto_quarantine_excludes_project_dependencies(
+        self,
+    ) -> None:
+        scheduler.save_schedule(
+            ScheduleConfig(
+                enabled=True,
+                auto_quarantine_low_risk=True,
+                notify=False,
+            )
+        )
+        fake_result = mock.Mock(
+            file_candidate_count=0,
+            cache_candidate_count=2,
+            review_candidate_bytes=200,
+        )
+        safe = mock.Mock(
+            action_id="C-safe",
+            path="/tmp/cache",
+            kind="cache_directory",
+            category="pip_cache",
+        )
+        project = mock.Mock(
+            action_id="C-project",
+            path="/tmp/node_modules",
+            kind="cache_directory",
+            category="project_dependency",
+        )
+        fake_plan = mock.Mock(entries=[safe, project])
+        fake_outcome = mock.Mock(moved=[safe], quarantined_bytes=100)
+        with (
+            mock.patch("spacekeeper.scanner.scan", return_value=fake_result),
+            mock.patch(
+                "spacekeeper.planning.build_cleanup_plan",
+                return_value=fake_plan,
+            ),
+            mock.patch(
+                "spacekeeper.engine.quarantine",
+                return_value=fake_outcome,
+            ) as quarantine,
+        ):
+            scheduler.run_scheduled(now=123.0)
+
+        quarantine.assert_called_once_with(
+            [("C-safe", "/tmp/cache", "cache_directory")]
+        )
 
 
 class LaunchdAgentTests(unittest.TestCase):
@@ -139,11 +202,20 @@ class LaunchdAgentTests(unittest.TestCase):
         self._tmp = TemporaryDirectory()
         self.tmp_path = Path(self._tmp.name)
         self.plist_path = self.tmp_path / "com.spacekeeper.agent.plist"
-        self._patch = mock.patch.object(launchd_agent, "PLIST_PATH", self.plist_path)
-        self._patch.start()
+        self._patches = [
+            mock.patch.object(launchd_agent, "PLIST_PATH", self.plist_path),
+            mock.patch.object(
+                launchd_agent,
+                "LOG_PATH",
+                self.tmp_path / ".spacekeeper" / "agent.log",
+            ),
+        ]
+        for patcher in self._patches:
+            patcher.start()
 
     def tearDown(self) -> None:
-        self._patch.stop()
+        for patcher in reversed(self._patches):
+            patcher.stop()
         self._tmp.cleanup()
 
     # -- is_agent_installed ----------------------------------------------------
@@ -152,8 +224,26 @@ class LaunchdAgentTests(unittest.TestCase):
         self.assertFalse(launchd_agent.is_agent_installed())
 
     def test_is_agent_installed_returns_true_when_plist_exists(self) -> None:
-        self.plist_path.write_bytes(b"<plist/>")
+        with self.plist_path.open("wb") as handle:
+            plistlib.dump(
+                {
+                    "Label": launchd_agent.PLIST_LABEL,
+                    "ProgramArguments": [launchd_agent.sys.executable],
+                },
+                handle,
+            )
         self.assertTrue(launchd_agent.is_agent_installed())
+
+    def test_is_agent_installed_rejects_stale_executable(self) -> None:
+        with self.plist_path.open("wb") as handle:
+            plistlib.dump(
+                {
+                    "Label": launchd_agent.PLIST_LABEL,
+                    "ProgramArguments": [str(self.tmp_path / "missing")],
+                },
+                handle,
+            )
+        self.assertFalse(launchd_agent.is_agent_installed())
 
     # -- install_launchd_agent (plist content) ---------------------------------
 
@@ -175,9 +265,22 @@ class LaunchdAgentTests(unittest.TestCase):
     def test_install_calls_launchctl_load(self, mock_run: mock.MagicMock) -> None:
         mock_run.return_value = mock.MagicMock(returncode=0)
         launchd_agent.install_launchd_agent()
-        mock_run.assert_called_once_with(
-            ["launchctl", "load", str(self.plist_path)],
-            check=True,
+        self.assertEqual(mock_run.call_count, 2)
+        mock_run.assert_has_calls(
+            [
+                mock.call(
+                    ["launchctl", "unload", str(self.plist_path)],
+                    check=False,
+                    stdout=launchd_agent.subprocess.DEVNULL,
+                    stderr=launchd_agent.subprocess.DEVNULL,
+                ),
+                mock.call(
+                    ["launchctl", "load", str(self.plist_path)],
+                    check=True,
+                    stdout=launchd_agent.subprocess.DEVNULL,
+                    stderr=launchd_agent.subprocess.DEVNULL,
+                ),
+            ]
         )
 
     # -- uninstall_launchd_agent -----------------------------------------------
@@ -189,6 +292,13 @@ class LaunchdAgentTests(unittest.TestCase):
         result = launchd_agent.uninstall_launchd_agent()
         self.assertTrue(result)
         self.assertFalse(self.plist_path.exists())
+
+    @mock.patch("spacekeeper.launchd_agent.subprocess.run")
+    def test_uninstall_missing_agent_is_success(
+        self, mock_run: mock.MagicMock
+    ) -> None:
+        self.assertTrue(launchd_agent.uninstall_launchd_agent())
+        mock_run.assert_not_called()
 
 
 if __name__ == "__main__":

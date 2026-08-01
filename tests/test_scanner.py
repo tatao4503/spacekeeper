@@ -102,6 +102,45 @@ class ScannerTests(unittest.TestCase):
             self.assertIn("xcode_simulator", categories)
             self.assertIn("homebrew_cache", categories)
 
+    def test_simulator_devices_require_review_but_cache_is_low_risk(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            devices_root = (
+                root
+                / "Library"
+                / "Developer"
+                / "CoreSimulator"
+                / "Devices"
+            )
+            caches_root = (
+                root
+                / "Library"
+                / "Developer"
+                / "CoreSimulator"
+                / "Caches"
+            )
+            devices_file = devices_root / "device-id" / "data.bin"
+            caches_file = caches_root / "cache-id" / "data.bin"
+            devices_file.parent.mkdir(parents=True)
+            caches_file.parent.mkdir(parents=True)
+            devices_file.write_bytes(b"device-data")
+            caches_file.write_bytes(b"cache-data")
+
+            result = scan(ScanOptions(roots=(root,)))
+            by_path = {
+                candidate.path: candidate
+                for candidate in result.cache_candidates
+            }
+
+            self.assertEqual(
+                by_path[str(devices_root.resolve())].risk,
+                "medium",
+            )
+            self.assertEqual(
+                by_path[str(caches_root.resolve())].risk,
+                "low",
+            )
+
     def test_build_space_tree_generates_hierarchy(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

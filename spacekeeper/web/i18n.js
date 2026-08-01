@@ -247,8 +247,8 @@ const EN = {
   "격리함 경로 검색": "Search Quarantine paths",
 
   // 자동 정리 (스케줄)
-  "정해진 주기마다 안전한 캐시를 자동으로 정리하도록 예약합니다.":
-    "Schedules safe caches to be cleaned automatically at a set interval.",
+  "기본은 알림만 제공하며, 직접 켜면 재생성 캐시만 격리합니다.":
+    "Notifications are the default. If enabled, only rebuildable caches are quarantined.",
   "스케줄 저장": "Save schedule",
   "자동 스캔·정리 켜기": "Enable auto scan & cleanup",
   "정해진 주기에 맞춰 백그라운드에서 조용히 실행됩니다.":
@@ -257,7 +257,13 @@ const EN = {
   "매일 (24시간)": "Daily (24 hours)",
   "매주 (168시간)": "Weekly (168 hours)",
   "매월 (30일)": "Monthly (30 days)",
-  "낮은 위험 캐시 자동 격리": "Auto-quarantine low-risk caches",
+  "재생성 캐시 자동 격리": "Auto-quarantine rebuildable caches",
+  "기본은 꺼짐이며, 패키지 다운로드·도구 캐시만 자동으로 격리합니다.":
+    "Off by default. Only package-download and tool caches are quarantined automatically.",
+  "자동 격리를 켤까요?": "Enable automatic quarantine?",
+  "패키지 다운로드와 도구 캐시만 자동으로 격리합니다. 파일은 삭제되지 않으며 격리함에서 복원할 수 있어요.":
+    "Only package-download and tool caches are quarantined automatically. Nothing is deleted, and you can restore items from Quarantine.",
+  "자동 격리 켜기": "Enable auto-quarantine",
   "다시 만들 수 있는 시스템·개발자 캐시만 격리합니다.":
     "Quarantines only regenerable system and developer caches.",
   "완료 알림 받기": "Notify when done",

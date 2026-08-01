@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from unittest import mock
 
-from spacekeeper import engine, server
+from spacekeeper import engine, launchd_agent, scheduler, server
 
 
 class DesktopParentMonitorTests(unittest.TestCase):
@@ -72,11 +72,32 @@ class ServerSafetyTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
+        for target, attribute, value in (
+            (
+                scheduler,
+                "CONFIG_PATH",
+                self.root / ".spacekeeper" / "schedule.json",
+            ),
+            (
+                launchd_agent,
+                "PLIST_PATH",
+                self.root / "LaunchAgents" / "com.spacekeeper.agent.plist",
+            ),
+        ):
+            patcher = mock.patch.object(target, attribute, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
         state = server._State()
         state.register(
             "scan", [("C-test", str(self.target), "cache_directory")]
         )
-        handler = type("_TestHandler", (server._Handler,), {"state": state})
+        self.api_token = "test-spacekeeper-api-token"
+        handler = type(
+            "_TestHandler",
+            (server._Handler,),
+            {"state": state, "api_token": self.api_token},
+        )
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
@@ -90,12 +111,20 @@ class ServerSafetyTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def _post(
-        self, payload: object, path: str = "/api/reclaim"
+        self,
+        payload: object,
+        path: str = "/api/reclaim",
+        headers: dict[str, str] | None = None,
     ) -> tuple[int, dict]:
+        request_headers = {
+            "Content-Type": "application/json",
+            "X-Spacekeeper-Token": self.api_token,
+        }
+        request_headers.update(headers or {})
         request = Request(
             self.base_url + path,
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers=request_headers,
             method="POST",
         )
         try:
@@ -107,9 +136,14 @@ class ServerSafetyTests(unittest.TestCase):
             finally:
                 exc.close()
 
-    def _get(self, path: str) -> tuple[int, dict]:
+    def _get(
+        self, path: str, headers: dict[str, str] | None = None
+    ) -> tuple[int, dict]:
+        request_headers = {"X-Spacekeeper-Token": self.api_token}
+        request_headers.update(headers or {})
+        request = Request(self.base_url + path, headers=request_headers)
         try:
-            with urlopen(self.base_url + path, timeout=2) as response:
+            with urlopen(request, timeout=2) as response:
                 return response.status, json.load(response)
         except HTTPError as exc:
             try:
@@ -134,6 +168,57 @@ class ServerSafetyTests(unittest.TestCase):
             }
             for record in engine.list_quarantine()
         ]
+
+    def test_dashboard_injects_token_and_security_headers(self) -> None:
+        with urlopen(self.base_url + "/", timeout=2) as response:
+            body = response.read().decode("utf-8")
+            self.assertEqual(response.status, 200)
+            self.assertEqual(
+                response.headers["X-Content-Type-Options"], "nosniff"
+            )
+            self.assertIn(
+                "frame-ancestors 'none'",
+                response.headers["Content-Security-Policy"],
+            )
+
+        self.assertIn(self.api_token, body)
+        self.assertNotIn(server._API_TOKEN_PLACEHOLDER, body)
+
+    def test_api_rejects_missing_or_wrong_token(self) -> None:
+        for headers in ({}, {"X-Spacekeeper-Token": "wrong-token"}):
+            request = Request(
+                self.base_url + "/api/system-status",
+                headers=headers,
+            )
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(request, timeout=2)
+            self.assertEqual(raised.exception.code, 403)
+            raised.exception.close()
+
+    def test_api_rejects_cross_origin_and_non_json_posts(self) -> None:
+        status, payload = self._post(
+            {"enabled": False},
+            path="/api/schedule",
+            headers={"Origin": "https://attacker.example"},
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("출처", payload["error"])
+
+        status, payload = self._post(
+            {"enabled": False},
+            path="/api/schedule",
+            headers={"Content-Type": "text/plain"},
+        )
+        self.assertEqual(status, 415)
+        self.assertIn("JSON", payload["error"])
+
+    def test_api_rejects_unexpected_host(self) -> None:
+        status, payload = self._get(
+            "/api/system-status",
+            headers={"Host": "attacker.example"},
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("로컬", payload["error"])
 
     def test_reclaim_requires_explicit_confirmation(self) -> None:
         status, payload = self._post({"action_ids": ["C-test"]})
@@ -274,6 +359,61 @@ class ServerSafetyTests(unittest.TestCase):
             text=True,
             timeout=server._SETTINGS_TIMEOUT_SECONDS,
         )
+
+    def test_schedule_reports_install_failure_without_saving_enabled_state(
+        self,
+    ) -> None:
+        with mock.patch.object(
+            launchd_agent, "install_launchd_agent", return_value=False
+        ):
+            status, payload = self._post(
+                {
+                    "enabled": True,
+                    "interval_hours": 168,
+                    "auto_quarantine_low_risk": False,
+                    "notify": True,
+                },
+                path="/api/schedule",
+            )
+
+        self.assertEqual(status, 500)
+        self.assertIn("등록하지 못했습니다", payload["error"])
+        self.assertFalse(scheduler.load_schedule().enabled)
+
+    def test_schedule_validates_payload_and_reports_agent_state(self) -> None:
+        status, payload = self._post(
+            {
+                "enabled": "yes",
+                "interval_hours": 168,
+                "auto_quarantine_low_risk": False,
+                "notify": True,
+            },
+            path="/api/schedule",
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("true 또는 false", payload["error"])
+
+        with (
+            mock.patch.object(
+                launchd_agent, "install_launchd_agent", return_value=True
+            ),
+            mock.patch.object(
+                launchd_agent, "is_agent_installed", return_value=True
+            ),
+        ):
+            status, payload = self._post(
+                {
+                    "enabled": True,
+                    "interval_hours": 24,
+                    "auto_quarantine_low_risk": False,
+                    "notify": True,
+                },
+                path="/api/schedule",
+            )
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["enabled"])
+        self.assertTrue(payload["agent_installed"])
 
     def test_scan_payload_honors_excluded_paths(self) -> None:
         payload = server._scan_payload(

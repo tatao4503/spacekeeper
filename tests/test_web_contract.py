@@ -50,6 +50,21 @@ class WebContractTests(unittest.TestCase):
         self.assertIn('data.runtime.mode === "bundled"', APP_JS)
         self.assertIn("별도의 Python 설치가 필요하지 않습니다.", APP_JS)
 
+    def test_api_requests_include_app_token(self) -> None:
+        self.assertIn('name="spacekeeper-api-token"', INDEX_HTML)
+        self.assertIn("__SPACEKEEPER_API_TOKEN__", INDEX_HTML)
+        self.assertIn('"X-Spacekeeper-Token"', APP_JS)
+        self.assertIn('credentials: "same-origin"', APP_JS)
+
+    def test_auto_quarantine_is_visibly_off_by_default(self) -> None:
+        match = re.search(
+            r'<input type="checkbox" id="sched-auto-clean"([^>]*)>',
+            INDEX_HTML,
+        )
+        self.assertIsNotNone(match)
+        self.assertNotIn("checked", match.group(1))
+        self.assertIn("기본은 꺼짐", INDEX_HTML)
+
 
 if __name__ == "__main__":
     unittest.main()

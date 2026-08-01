@@ -4,7 +4,10 @@
 // 남아 있다가 "종료"를 누르면 서버까지 함께 정리합니다.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::net::{SocketAddr, TcpStream};
+use std::fmt::Write as FmtWrite;
+use std::fs::File;
+use std::io::{Read, Write as IoWrite};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
@@ -14,15 +17,52 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, RunEvent, WindowEvent};
 
-const PORT: u16 = 8765;
-const URL: &str = "http://127.0.0.1:8765";
-
 // 앱과 함께 종료할 수 있도록 서버 자식 프로세스를 보관한다.
 struct ServerProcess(Mutex<Option<Child>>);
 
-fn server_is_up() -> bool {
-    let addr: SocketAddr = ([127, 0, 0, 1], PORT).into();
-    TcpStream::connect_timeout(&addr, Duration::from_millis(300)).is_ok()
+fn available_port() -> Option<u16> {
+    TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .ok()?
+        .local_addr()
+        .ok()
+        .map(|addr| addr.port())
+}
+
+fn generate_api_token() -> Option<String> {
+    let mut random = [0_u8; 32];
+    File::open("/dev/urandom")
+        .ok()?
+        .read_exact(&mut random)
+        .ok()?;
+    let mut token = String::with_capacity(random.len() * 2);
+    for byte in random {
+        write!(&mut token, "{byte:02x}").ok()?;
+    }
+    Some(token)
+}
+
+fn server_is_ready(port: u16, api_token: &str) -> bool {
+    let addr: SocketAddr = ([127, 0, 0, 1], port).into();
+    let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(300)) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(300)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(300)));
+    let request = format!(
+        "GET /api/system-status HTTP/1.1\r\n\
+         Host: 127.0.0.1:{port}\r\n\
+         X-Spacekeeper-Token: {api_token}\r\n\
+         Connection: close\r\n\r\n"
+    );
+    if stream.write_all(request.as_bytes()).is_err() {
+        return false;
+    }
+    let mut response = [0_u8; 64];
+    let Ok(read) = stream.read(&mut response) else {
+        return false;
+    };
+    let status = String::from_utf8_lossy(&response[..read]);
+    status.starts_with("HTTP/1.0 200") || status.starts_with("HTTP/1.1 200")
 }
 
 fn sidecar_path() -> Option<PathBuf> {
@@ -55,10 +95,7 @@ fn sidecar_path() -> Option<PathBuf> {
     None
 }
 
-fn spawn_server() -> Option<Child> {
-    if server_is_up() {
-        return None; // 이미 떠 있으면 그대로 사용
-    }
+fn spawn_server(port: u16, api_token: &str) -> Option<Child> {
     let sidecar = match sidecar_path() {
         Some(path) => path,
         None => {
@@ -72,6 +109,8 @@ fn spawn_server() -> Option<Child> {
             "SPACEKEEPER_DESKTOP_PARENT_PID",
             std::process::id().to_string(),
         )
+        .env("SPACEKEEPER_PORT", port.to_string())
+        .env("SPACEKEEPER_API_TOKEN", api_token)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -89,15 +128,24 @@ fn main() {
     let app = tauri::Builder::default()
         .manage(ServerProcess(Mutex::new(None)))
         .setup(|app| {
-            *app.state::<ServerProcess>().0.lock().unwrap() = spawn_server();
+            let port = available_port().ok_or_else(|| {
+                std::io::Error::other("Spacekeeper 로컬 포트를 준비할 수 없습니다")
+            })?;
+            let api_token = generate_api_token().ok_or_else(|| {
+                std::io::Error::other("Spacekeeper 앱 인증 정보를 만들 수 없습니다")
+            })?;
+            let child = spawn_server(port, &api_token)
+                .ok_or_else(|| std::io::Error::other("Spacekeeper 서버를 시작할 수 없습니다"))?;
+            *app.state::<ServerProcess>().0.lock().unwrap() = Some(child);
 
             // 서버가 준비되면 웹뷰를 대시보드로 이동시킨다.
             if let Some(window) = app.get_webview_window("main") {
                 let win = window.clone();
                 std::thread::spawn(move || {
                     for _ in 0..240 {
-                        if server_is_up() {
-                            if let Ok(url) = URL.parse() {
+                        if server_is_ready(port, &api_token) {
+                            let dashboard_url = format!("http://127.0.0.1:{port}");
+                            if let Ok(url) = dashboard_url.parse() {
                                 let _ = win.navigate(url);
                             }
                             break;

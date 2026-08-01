@@ -34,7 +34,9 @@ stops at a limit, it says so instead of implying it saw everything.
 Xcode `DerivedData`, `.next`, package manager caches, local LLM weights. On the
 author's Mac these were ~23 GB that consumer cleaners never touch.
 
-**Local only.** No account, no telemetry, no network calls. Python standard
+**Local only.** No account, no telemetry, and no external network calls. The
+dashboard binds only to loopback; every API request must also carry a
+per-launch 256-bit token and match the local Host/Origin. Python standard
 library only — no third-party runtime dependencies.
 
 ## What it finds
@@ -105,8 +107,9 @@ rest still works.
 4. Moves are restricted to your home folder and `/Applications`. `/System`,
    `/Library`, `~/.ssh` and Keychains are refused outright.
 5. Symlinks are never followed.
-6. Background scheduled runs notify only. Auto-quarantine is off by default and
-   must be enabled explicitly.
+6. Background scheduled runs notify only by default. Auto-quarantine is off
+   until explicitly confirmed and is limited to package-download and tool
+   caches; project dependencies, build outputs, and simulator data are excluded.
 
 ## Development
 

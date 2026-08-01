@@ -70,6 +70,18 @@ class DesktopBundleContractTests(unittest.TestCase):
         self.assertNotIn('Command::new("python3")', MAIN_RS)
         self.assertFalse((DESKTOP / "stage-runtime.sh").exists())
 
+    def test_native_app_uses_dynamic_port_and_per_launch_api_token(self) -> None:
+        self.assertIn('File::open("/dev/urandom")', MAIN_RS)
+        self.assertIn(
+            "TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))",
+            MAIN_RS,
+        )
+        self.assertIn('"SPACEKEEPER_API_TOKEN"', MAIN_RS)
+        self.assertIn('"SPACEKEEPER_PORT"', MAIN_RS)
+        self.assertIn("server_is_ready(port, &api_token)", MAIN_RS)
+        self.assertNotIn("const PORT: u16 = 8765", MAIN_RS)
+        self.assertIsNotNone(TAURI_CONFIG["app"]["security"]["csp"])
+
 
 if __name__ == "__main__":
     unittest.main()

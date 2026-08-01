@@ -8,7 +8,10 @@
 from __future__ import annotations
 
 import json
+import hmac
+import html
 import os
+import secrets
 import subprocess
 import sys
 import threading
@@ -32,7 +35,21 @@ _EMPTY_LIMIT = 10_000
 _REVEAL_TIMEOUT_SECONDS = 5
 _SETTINGS_TIMEOUT_SECONDS = 5
 _DESKTOP_PARENT_ENV = "SPACEKEEPER_DESKTOP_PARENT_PID"
+_API_TOKEN_ENV = "SPACEKEEPER_API_TOKEN"
 _PARENT_CHECK_INTERVAL_SECONDS = 0.5
+_MAX_JSON_BODY_BYTES = 1_000_000
+_API_TOKEN_PLACEHOLDER = "__SPACEKEEPER_API_TOKEN__"
+_CSP = (
+    "default-src 'self'; "
+    "connect-src 'self'; "
+    "img-src 'self' data:; "
+    "style-src 'self' 'unsafe-inline'; "
+    "script-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'none'; "
+    "frame-ancestors 'none'; "
+    "form-action 'none'"
+)
 
 
 def _desktop_parent_pid() -> int | None:
@@ -528,15 +545,25 @@ def _quarantine_path_for_reveal(action_id: str, instance_token: str) -> str:
 
 class _Handler(BaseHTTPRequestHandler):
     state: _State
+    api_token: str
 
     def log_message(self, *args) -> None:  # noqa: D401 - 조용히
         pass
+
+    def _send_common_headers(self, *, no_store: bool = True) -> None:
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+        self.send_header("Content-Security-Policy", _CSP)
+        if no_store:
+            self.send_header("Cache-Control", "no-store")
 
     def _send_json(self, payload: dict, status: int = 200) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self._send_common_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -546,23 +573,73 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         body = path.read_bytes()
+        if filename == "index.html":
+            token = html.escape(self.api_token, quote=True).encode("ascii")
+            body = body.replace(_API_TOKEN_PLACEHOLDER.encode("ascii"), token)
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self._send_common_headers(no_store=filename == "index.html")
         self.end_headers()
         self.wfile.write(body)
 
     def _read_json_body(self) -> dict:
-        length = int(self.headers.get("Content-Length", "0"))
+        raw_length = self.headers.get("Content-Length", "0")
+        try:
+            length = int(raw_length)
+        except ValueError as exc:
+            raise ValueError("Content-Length가 올바르지 않습니다.") from exc
         if length <= 0:
             return {}
+        if length > _MAX_JSON_BODY_BYTES:
+            raise OverflowError("요청 본문이 너무 큽니다.")
         body = json.loads(self.rfile.read(length).decode("utf-8"))
         if not isinstance(body, dict):
             raise ValueError("요청 본문은 JSON 객체여야 합니다.")
         return body
 
+    def _allowed_authorities(self) -> set[str]:
+        port = int(self.server.server_address[1])
+        return {
+            f"127.0.0.1:{port}",
+            f"localhost:{port}",
+            f"[::1]:{port}",
+        }
+
+    def _authorize_api_request(self, *, require_json: bool = False) -> bool:
+        authority = self.headers.get("Host", "").lower()
+        if authority not in self._allowed_authorities():
+            self._send_json({"error": "허용되지 않은 로컬 요청입니다."}, status=403)
+            return False
+
+        supplied_token = self.headers.get("X-Spacekeeper-Token", "")
+        if not supplied_token or not hmac.compare_digest(
+            supplied_token, self.api_token
+        ):
+            self._send_json({"error": "앱 인증 정보가 올바르지 않습니다."}, status=403)
+            return False
+
+        origin = self.headers.get("Origin")
+        allowed_origins = {f"http://{item}" for item in self._allowed_authorities()}
+        if origin is not None and origin.lower() not in allowed_origins:
+            self._send_json({"error": "허용되지 않은 요청 출처입니다."}, status=403)
+            return False
+
+        if require_json:
+            content_type = self.headers.get("Content-Type", "")
+            media_type = content_type.split(";", 1)[0].strip().lower()
+            if media_type != "application/json":
+                self._send_json(
+                    {"error": "JSON 요청만 처리할 수 있습니다."},
+                    status=415,
+                )
+                return False
+        return True
+
     def do_GET(self) -> None:  # noqa: N802
         route = urlparse(self.path)
+        if route.path.startswith("/api/") and not self._authorize_api_request():
+            return
         if route.path in ("/", "/index.html"):
             self._send_static("index.html", "text/html; charset=utf-8")
         elif route.path == "/style.css":
@@ -690,7 +767,11 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, status=500)
         elif route.path == "/api/schedule":
             from .scheduler import load_schedule, to_dict
-            self._send_json(to_dict(load_schedule()))
+            from .launchd_agent import is_agent_installed
+
+            payload = to_dict(load_schedule())
+            payload["agent_installed"] = is_agent_installed()
+            self._send_json(payload)
         elif route.path == "/api/app-icon":
             app_path = parse_qs(route.query).get("path", [""])[0]
             if not app_path:
@@ -703,6 +784,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "image/png")
                 self.send_header("Content-Length", str(len(icon_data)))
                 self.send_header("Cache-Control", "public, max-age=86400")
+                self._send_common_headers(no_store=False)
                 self.end_headers()
                 self.wfile.write(icon_data)
             else:
@@ -712,8 +794,16 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         route = urlparse(self.path)
+        if not route.path.startswith("/api/"):
+            self.send_error(404)
+            return
+        if not self._authorize_api_request(require_json=True):
+            return
         try:
             body = self._read_json_body()
+        except OverflowError as exc:
+            self._send_json({"error": str(exc)}, status=413)
+            return
         except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
             self._send_json({"error": f"잘못된 요청 본문: {exc}"}, status=400)
             return
@@ -903,21 +993,83 @@ class _Handler(BaseHTTPRequestHandler):
                 {"emptied": [r.to_dict() for r in emptied], "count": len(emptied)}
             )
         elif route.path == "/api/schedule":
-            from .scheduler import from_dict, save_schedule, to_dict
-            from .launchd_agent import install_launchd_agent, uninstall_launchd_agent
-            config = from_dict(body)
-            save_schedule(config)
+            from .scheduler import (
+                from_dict,
+                load_schedule,
+                save_schedule,
+                to_dict,
+            )
+            from .launchd_agent import (
+                install_launchd_agent,
+                is_agent_installed,
+                uninstall_launchd_agent,
+            )
+
+            try:
+                config = from_dict(body)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+
+            previous = load_schedule()
             if config.enabled:
-                install_launchd_agent(config.interval_hours)
+                agent_updated = install_launchd_agent(config.interval_hours)
             else:
-                uninstall_launchd_agent()
-            self._send_json(to_dict(config))
+                agent_updated = uninstall_launchd_agent()
+            if not agent_updated:
+                action = "등록" if config.enabled else "해제"
+                self._send_json(
+                    {
+                        "error": (
+                            f"백그라운드 실행을 {action}하지 못했습니다. "
+                            "Spacekeeper를 응용 프로그램 폴더에서 실행하고 "
+                            "다시 시도하세요."
+                        )
+                    },
+                    status=500,
+                )
+                return
+
+            try:
+                save_schedule(config)
+            except OSError as exc:
+                if previous.enabled:
+                    install_launchd_agent(previous.interval_hours)
+                else:
+                    uninstall_launchd_agent()
+                self._send_json(
+                    {"error": f"스케줄 설정을 저장하지 못했습니다: {exc}"},
+                    status=500,
+                )
+                return
+
+            payload = to_dict(config)
+            payload["agent_installed"] = is_agent_installed()
+            self._send_json(payload)
         else:
             self.send_error(404)
 
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self._send_json(
+            {"error": "교차 출처 요청은 허용되지 않습니다."},
+            status=403,
+        )
 
-def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
-    handler = type("_BoundHandler", (_Handler,), {"state": _State()})
+
+def serve(
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    *,
+    api_token: str | None = None,
+) -> None:
+    resolved_token = api_token or os.environ.get(_API_TOKEN_ENV)
+    if not resolved_token:
+        resolved_token = secrets.token_urlsafe(32)
+    handler = type(
+        "_BoundHandler",
+        (_Handler,),
+        {"state": _State(), "api_token": resolved_token},
+    )
     server = ThreadingHTTPServer((host, port), handler)
     parent_stop = threading.Event()
     parent_watch: threading.Thread | None = None
