@@ -718,7 +718,7 @@ function updateDupSelection() {
 /* ---------- apps ---------- */
 async function loadApps() {
   const list = document.getElementById("apps-list");
-  list.innerHTML = `<div class="q-empty">설치된 앱과 관련 파일을 분석하는 중…</div>`;
+  list.innerHTML = `<div class="q-empty is-loading">설치된 앱과 관련 파일을 분석하는 중…</div>`;
   try {
     const data = await api("/api/apps");
     lastApps = data;
@@ -946,7 +946,7 @@ function updateQSelection() {
 
 async function loadQuarantine() {
   const list = document.getElementById("quarantine-list");
-  list.innerHTML = `<div class="q-empty">불러오는 중…</div>`;
+  list.innerHTML = `<div class="q-empty is-loading">불러오는 중…</div>`;
   try {
     const data = await api("/api/quarantine");
     lastQuarantine = data.items;
@@ -1169,7 +1169,7 @@ async function loadSpaceTree(targetPath) {
   const container = document.getElementById("tree-view-container");
   const bc = document.getElementById("tree-breadcrumb");
   if (!container || !bc) return;
-  container.innerHTML = `<div class="q-empty">폴더 구조와 용량 비중을 분석하는 중…</div>`;
+  container.innerHTML = `<div class="q-empty is-loading">폴더 구조와 용량 비중을 분석하는 중…</div>`;
   bc.innerHTML = "";
   try {
     const url = targetPath ? `/api/space-tree?path=${encodeURIComponent(targetPath)}` : "/api/space-tree";
@@ -1245,7 +1245,7 @@ async function loadLargeFiles() {
   const list = document.getElementById("lf-list");
   const summary = document.getElementById("lf-summary");
   if (!list) return;
-  list.innerHTML = `<div class="q-empty">대용량 파일을 검색하는 중…</div>`;
+  list.innerHTML = `<div class="q-empty is-loading">대용량 파일을 검색하는 중…</div>`;
   summary.textContent = "";
   try {
     const minMb = document.getElementById("lf-min-mb")?.value || "50";
@@ -1294,7 +1294,7 @@ async function loadDecide() {
   const summary = document.getElementById("decide-summary");
   const button = document.getElementById("decide-scan");
   const minMb = document.getElementById("decide-min-mb").value;
-  list.innerHTML = `<div class="q-empty">파일을 모으는 중…</div>`;
+  list.innerHTML = `<div class="q-empty is-loading">파일을 모으는 중…</div>`;
   summary.textContent = "";
   button.disabled = true;
   try {
@@ -1426,7 +1426,7 @@ async function loadBrowserCaches() {
   const list = document.getElementById("bc-list");
   const summary = document.getElementById("bc-summary");
   if (!list) return;
-  list.innerHTML = `<div class="q-empty">브라우저 및 메일 캐시를 분석하는 중…</div>`;
+  list.innerHTML = `<div class="q-empty is-loading">브라우저 및 메일 캐시를 분석하는 중…</div>`;
   summary.textContent = "";
   try {
     const data = await api("/api/browser-caches");
@@ -1544,7 +1544,7 @@ let lastPhotos = null;
 async function loadPhotos() {
   const list = document.getElementById("photos-list");
   const button = document.getElementById("photos-scan");
-  list.innerHTML = `<div class="q-empty">사진을 비교하는 중… 장수가 많으면 시간이 걸립니다.</div>`;
+  list.innerHTML = `<div class="q-empty is-loading">사진을 비교하는 중… 장수가 많으면 시간이 걸립니다.</div>`;
   button.disabled = true;
   try {
     const data = await api("/api/similar-photos");
@@ -1609,7 +1609,7 @@ const selStartup = new Set();
 
 async function loadStartup() {
   const list = document.getElementById("startup-list");
-  list.innerHTML = `<div class="q-empty">자동 실행 항목을 확인하는 중…</div>`;
+  list.innerHTML = `<div class="q-empty is-loading">자동 실행 항목을 확인하는 중…</div>`;
   try {
     const data = await api("/api/startup-items");
     selStartup.clear();

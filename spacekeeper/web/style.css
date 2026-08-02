@@ -522,9 +522,17 @@ body {
 .q-item .entry-main { flex: 1; }
 .q-check { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent); }
 .q-empty {
-  color: var(--muted); text-align: center; padding: 68px 24px; font-size: 13.5px; line-height: 1.6;
-  border: 1px dashed var(--line-strong); border-radius: var(--radius); background: rgba(255, 255, 255, 0.015);
+  color: var(--muted); text-align: center; padding: 56px 24px; font-size: 13.5px; line-height: 1.6;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel); box-shadow: var(--shadow);
 }
+/* 로딩 문구(…로 끝남)엔 잔잔한 스피너를 얹어 준다 */
+.q-empty.is-loading::before {
+  content: ""; display: block; width: 22px; height: 22px; margin: 0 auto 14px;
+  border: 2.5px solid var(--line-strong); border-top-color: var(--accent);
+  border-radius: 50%; animation: sk-spin 0.7s linear infinite;
+}
+@keyframes sk-spin { to { transform: rotate(360deg); } }
 
 /* Diagnostics */
 .diagnostics-overview {
@@ -1380,3 +1388,12 @@ select::-ms-expand { display: none; }
   padding: 10px 12px; border-radius: 9px; cursor: pointer;
 }
 .tool-menu-item:hover { background: var(--panel-2); }
+
+/* 스크롤바 — 라이트·다크 모두 같은 얇은 커스텀 (다크 전용이던 것 통일) */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong); border-radius: 8px;
+  border: 3px solid transparent; background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--faint); background-clip: content-box; }
