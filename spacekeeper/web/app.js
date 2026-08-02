@@ -463,6 +463,29 @@ async function runScan() {
 
 function sumBytes(entries) { return entries.reduce((s, e) => s + e.allocated_bytes, 0); }
 
+/* 큰 용량 숫자를 도넛 애니메이션과 함께 0→목표로 카운트업 */
+function animateBytes(el, target) {
+  if (!el) return;
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce || !(target > 0)) { el.textContent = fmtBytes(target || 0); return; }
+  const dur = 850;
+  const start = performance.now();
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  const token = (el.__animToken = (el.__animToken || 0) + 1);
+  function frame(now) {
+    if (el.__animToken !== token) return; // 새 스캔이 시작되면 이전 애니메이션 취소
+    const t = Math.min(1, (now - start) / dur);
+    el.textContent = fmtBytes(target * ease(t));
+    if (t < 1) requestAnimationFrame(frame);
+    else el.textContent = fmtBytes(target);
+  }
+  requestAnimationFrame(frame);
+  // rAF가 스로틀·중단돼도(백그라운드 탭 등) 최종값은 반드시 찍히게 보증
+  setTimeout(() => {
+    if (el.__animToken === token) el.textContent = fmtBytes(target);
+  }, dur + 150);
+}
+
 function renderResults(data) {
   document.getElementById("results").hidden = false;
 
@@ -472,7 +495,7 @@ function renderResults(data) {
   used.style.strokeDasharray = circ;
   used.style.strokeDashoffset = circ * (1 - usedRatio);
   document.getElementById("donut-free").textContent = fmtBytes(data.disk.free);
-  document.getElementById("reclaimable-total").textContent = fmtBytes(data.review_bytes);
+  animateBytes(document.getElementById("reclaimable-total"), data.review_bytes);
 
   const risk = data.by_risk;
   const total = (risk.low + risk.medium + risk.high) || 1;
