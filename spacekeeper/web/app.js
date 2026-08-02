@@ -1205,37 +1205,92 @@ function renderBreadcrumb(fullPath) {
   });
 }
 
+/* Squarified treemap layout (Bruls et al.): block area ∝ size. */
+function squarify(areas, x, y, w, h) {
+  const out = [];
+  const vals = areas.slice();
+  let cx = x, cy = y, cw = w, ch = h;
+  let row = [];
+  const side = () => Math.min(cw, ch);
+  const worst = (r, len) => {
+    const s = r.reduce((a, b) => a + b, 0);
+    if (s <= 0) return Infinity;
+    const mx = Math.max(...r), mn = Math.min(...r);
+    return Math.max((len * len * mx) / (s * s), (s * s) / (len * len * mn));
+  };
+  const flush = (r) => {
+    const s = r.reduce((a, b) => a + b, 0);
+    if (cw >= ch) {
+      const colW = s / ch;
+      let yy = cy;
+      for (const a of r) { const hh = a / colW; out.push({ x: cx, y: yy, w: colW, h: hh }); yy += hh; }
+      cx += colW; cw -= colW;
+    } else {
+      const rowH = s / cw;
+      let xx = cx;
+      for (const a of r) { const ww = a / rowH; out.push({ x: xx, y: cy, w: ww, h: rowH }); xx += ww; }
+      cy += rowH; ch -= rowH;
+    }
+  };
+  while (vals.length) {
+    if (!row.length) { row.push(vals.shift()); continue; }
+    if (worst(row, side()) >= worst(row.concat(vals[0]), side())) row.push(vals.shift());
+    else { flush(row); row = []; }
+  }
+  if (row.length) flush(row);
+  return out;
+}
+
 function renderTreemap(treeNode) {
   const container = document.getElementById("tree-view-container");
   if (!container) return;
-  if (!treeNode.children || !treeNode.children.length) {
+  const children = (treeNode.children || []).filter((c) => Number(c.allocated_bytes) > 0);
+  if (!children.length) {
     container.innerHTML = `<div class="q-empty">폴더에 포함된 항목이 없거나 접근할 수 없습니다.</div>`;
     return;
   }
-  const total = Number(treeNode.allocated_bytes || 1);
-  const grid = document.createElement("div");
-  grid.className = "treemap-grid";
+  container.innerHTML = "";
+  const canvas = document.createElement("div");
+  canvas.className = "treemap-canvas";
+  container.appendChild(canvas);
 
-  for (const child of treeNode.children) {
-    const childBytes = Number(child.allocated_bytes || 0);
-    const pct = Math.max(1, Math.round((childBytes / total) * 100));
-    const block = document.createElement("div");
-    block.className = `treemap-block kind-${escapeHtml(child.kind)}`;
-    block.innerHTML = `
-      <div class="treemap-fill-bar" style="width: ${pct}%"></div>
-      <div class="treemap-name" title="${escapeHtml(child.name)}">${child.kind === 'dir' ? '📁 ' : child.kind === 'other' ? '📦 ' : '📄 '}${escapeHtml(child.name)}</div>
-      <div class="treemap-meta">
-        <span>${child.file_count ? child.file_count + '개' : ''} (${pct}%)</span>
-        <span class="treemap-size">${escapeHtml(child.allocated_human)}</span>
-      </div>`;
+  const W = Math.max(320, canvas.clientWidth || container.clientWidth || 900);
+  const H = 470;
+  canvas.style.height = `${H}px`;
 
+  const total = children.reduce((a, c) => a + Number(c.allocated_bytes || 0), 0) || 1;
+  const scale = (W * H) / total;
+  const areas = children.map((c) => Math.max(1, Number(c.allocated_bytes || 0) * scale));
+  const rects = squarify(areas, 0, 0, W, H);
+
+  children.forEach((child, i) => {
+    const r = rects[i];
+    if (!r) return;
+    const pct = Math.max(1, Math.round((Number(child.allocated_bytes || 0) / total) * 100));
+    const gap = 2;
+    const block = document.createElement(child.kind === "dir" ? "button" : "div");
+    block.className = `tm-block kind-${escapeHtml(child.kind)}`;
+    block.style.cssText =
+      `left:${r.x + gap}px;top:${r.y + gap}px;` +
+      `width:${Math.max(0, r.w - gap * 2)}px;height:${Math.max(0, r.h - gap * 2)}px;`;
+    // 큰 블록일수록 진하게 (사이즈 히트맵)
+    block.style.setProperty("--tm-weight", String(Math.min(1, pct / 40)));
+    const roomy = r.w > 64 && r.h > 40;
+    const icon = child.kind === "dir" ? "📁" : child.kind === "other" ? "📦" : "📄";
+    block.title = `${child.name} · ${child.allocated_human} (${pct}%)`;
+    if (roomy) {
+      block.innerHTML =
+        `<span class="tm-name">${icon} ${escapeHtml(child.name)}</span>` +
+        `<span class="tm-size">${escapeHtml(child.allocated_human)} · ${pct}%</span>`;
+    } else if (r.w > 26 && r.h > 16) {
+      block.innerHTML = `<span class="tm-size tm-mini">${pct}%</span>`;
+    }
     if (child.kind === "dir") {
+      block.type = "button";
       block.addEventListener("click", () => loadSpaceTree(child.path));
     }
-    grid.appendChild(block);
-  }
-  container.innerHTML = "";
-  container.appendChild(grid);
+    canvas.appendChild(block);
+  });
 }
 
 /* ---------- Large Files ---------- */

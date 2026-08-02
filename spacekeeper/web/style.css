@@ -919,36 +919,36 @@ body {
 .tree-view-container {
   display: flex; flex-direction: column; gap: 16px;
 }
-.treemap-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px; width: 100%;
+/* 비례 트리맵 — 블록 면적 = 용량 (squarified) */
+.treemap-canvas {
+  position: relative; width: 100%; border-radius: var(--radius);
+  overflow: hidden; border: 1px solid var(--line); background: var(--panel-2);
+  box-shadow: var(--shadow);
 }
-.treemap-block {
-  display: flex; flex-direction: column; justify-content: space-between;
-  min-height: 110px; padding: 14px 16px; border-radius: 14px;
-  border: 1px solid var(--line-strong); background: var(--panel);
-  cursor: pointer; transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
-  position: relative; overflow: hidden;
+.tm-block {
+  position: absolute; margin: 0; padding: 8px 10px; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-start; gap: 3px;
+  text-align: left; border-radius: 6px; border: 1px solid var(--line);
+  color: var(--text); font: inherit;
+  background: var(--panel);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--accent) calc(var(--tm-weight, 0.2) * 26%), var(--panel)),
+      var(--panel));
+  transition: filter 0.14s, box-shadow 0.14s, outline-color 0.14s;
+  outline: 2px solid transparent; outline-offset: -2px;
 }
-.treemap-block:hover {
-  transform: translateY(-2px); border-color: var(--accent-line);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
-}
-.treemap-block.kind-dir { background: linear-gradient(135deg, var(--panel), var(--panel-2)); }
-.treemap-block.kind-other { opacity: 0.82; background: rgba(255, 255, 255, 0.02); }
-.treemap-fill-bar {
-  position: absolute; bottom: 0; left: 0; height: 4px;
-  background: var(--accent); border-radius: 2px;
-}
-.treemap-name {
-  font-weight: 600; font-size: 13.5px; color: var(--text);
+.tm-block.kind-file { background: var(--panel); }
+.tm-block.kind-other { background: var(--panel-2); color: var(--muted); }
+button.tm-block { cursor: pointer; }
+button.tm-block:hover { filter: brightness(1.12); box-shadow: inset 0 0 0 9999px rgba(10, 132, 255, 0.06); }
+button.tm-block:focus-visible { outline-color: var(--accent); }
+.tm-name {
+  font-weight: 600; font-size: 12.5px; line-height: 1.25;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.treemap-meta {
-  display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 12px; color: var(--muted); margin-top: 10px;
-}
-.treemap-size { font-weight: 700; color: var(--accent); }
+.tm-size { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tm-size.tm-mini { font-size: 10px; color: var(--faint); }
 
 /* Leftover Hunter Tags & Progress Bars */
 .app-footprint-bar {
