@@ -5,7 +5,8 @@ import os
 import shutil
 import time
 from collections import defaultdict
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from threading import Event
@@ -316,6 +317,30 @@ def _cache_bucket(path: Path) -> tuple[Path, CacheRule] | None:
     return None
 
 
+def _dir_cache_bucket(directory: Path) -> tuple[Path, CacheRule] | None:
+    """디렉터리가 속한 캐시 버킷을 구한다.
+
+    캐시 소속은 조상 폴더로 결정되므로, 파일마다 규칙을 다시 매칭하는 대신
+    폴더 단위로 한 번만 계산하고 하위로 상속시킨다. 같은 폴더의 모든 파일에
+    대해 기존 ``_cache_bucket(file)`` 과 동일한 결과를 낸다.
+    """
+    parts = directory.parts
+    for index, part in enumerate(parts):
+        if part == "target" and _is_rust_target(Path(*parts[: index + 1])):
+            return Path(*parts[: index + 1]), RUST_TARGET_RULE
+    for rule in CACHE_RULES:
+        index = _find_sequence(parts, rule.parts)
+        if index is None:
+            continue
+        end = index + len(rule.parts)
+        if end > len(parts):
+            continue
+        if rule.group_child and end < len(parts):
+            end += 1
+        return Path(*parts[:end]), rule
+    return None
+
+
 def _is_download(path: Path) -> bool:
     return "Downloads" in path.parts
 
@@ -484,6 +509,116 @@ def _is_cloud_container(path: Path) -> bool:
     }
 
 
+@dataclass
+class _DirResult:
+    """한 디렉터리를 훑은 부분 결과. 메인 스레드에서 순서대로 병합한다."""
+
+    subdirs: list[Path] = field(default_factory=list)
+    bucket: tuple[Path, CacheRule] | None = None
+    cache_size: int = 0
+    cache_logical: int = 0
+    cache_count: int = 0
+    candidates: list[FileCandidate] = field(default_factory=list)
+    dup_entries: list[tuple[int, tuple[Path, int]]] = field(default_factory=list)
+    scanned_files: int = 0
+    scanned_bytes: int = 0
+    scanned_logical: int = 0
+    skipped_symlinks: int = 0
+    skipped_cloud_dirs: int = 0
+    skipped_excluded_paths: int = 0
+    permission_denied: int = 0
+    errors: list[str] = field(default_factory=list)
+    excluded: bool = False
+
+
+def _scan_directory(
+    directory: Path,
+    options: ScanOptions,
+    now: float,
+    excluded_paths: frozenset[Path],
+    have_excludes: bool,
+    cancel_event: Event | None,
+) -> _DirResult:
+    """디렉터리 하나를 스캔한다(스레드 워커). I/O(scandir·stat)가 대부분이라
+    GIL을 놓고 병렬로 겹칠 수 있다. 출력은 순서 독립적이라 병합 순서와 무관하다."""
+    r = _DirResult()
+    if _is_excluded(directory, excluded_paths) or _is_automatic_excluded_directory(
+        directory
+    ):
+        r.excluded = True
+        r.skipped_excluded_paths += 1
+        return r
+    bucket = _dir_cache_bucket(directory)
+    r.bucket = bucket
+    try:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if cancel_event is not None and cancel_event.is_set():
+                    break
+                try:
+                    if entry.is_symlink():
+                        r.skipped_symlinks += 1
+                        continue
+                    if have_excludes and _is_excluded(
+                        Path(entry.path), excluded_paths
+                    ):
+                        r.skipped_excluded_paths += 1
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        child = Path(entry.path)
+                        if _is_automatic_excluded_directory(child):
+                            r.skipped_excluded_paths += 1
+                            continue
+                        if (
+                            not options.include_cloud_storage
+                            and _is_cloud_container(child)
+                        ):
+                            r.skipped_cloud_dirs += 1
+                            continue
+                        r.subdirs.append(child)
+                        continue
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                    stat = entry.stat(follow_symlinks=False)
+                except PermissionError:
+                    r.permission_denied += 1
+                    continue
+                except OSError as exc:
+                    if len(r.errors) < 20:
+                        r.errors.append(f"파일 건너뜀: {entry.path} ({exc})")
+                    continue
+
+                r.scanned_files += 1
+                allocated_size = _allocated_size(stat)
+                r.scanned_bytes += allocated_size
+                r.scanned_logical += stat.st_size
+                if bucket is not None:
+                    r.cache_size += allocated_size
+                    r.cache_logical += stat.st_size
+                    r.cache_count += 1
+                else:
+                    candidate = _file_candidate(
+                        Path(entry.path),
+                        allocated_size,
+                        stat.st_size,
+                        stat.st_mtime,
+                        options,
+                        now,
+                    )
+                    if candidate is not None:
+                        r.candidates.append(candidate)
+                if options.find_duplicates and stat.st_size >= options.duplicate_min_bytes:
+                    r.dup_entries.append(
+                        (stat.st_size, (Path(entry.path), allocated_size))
+                    )
+    except PermissionError:
+        r.permission_denied += 1
+    except OSError as exc:
+        if len(r.errors) < 20:
+            r.errors.append(f"폴더 건너뜀: {directory} ({exc})")
+    return r
+
+
 def scan(
     options: ScanOptions,
     *,
@@ -507,6 +642,7 @@ def scan(
     cache_aggregates: dict[Path, _CacheAggregate] = {}
     duplicate_buckets: dict[int, list[tuple[Path, int]]] = defaultdict(list)
     last_progress_at = 0.0
+    directories_pending = 0
 
     def emit_progress(
         phase: str,
@@ -530,97 +666,60 @@ def scan(
                 "scanned_files": scanned_files,
                 "scanned_bytes": scanned_bytes,
                 "candidates_found": len(file_candidates) + len(cache_aggregates),
-                "directories_pending": len(stack),
+                "directories_pending": directories_pending,
                 "duplicate_files_done": duplicate_files_done,
                 "duplicate_files_total": duplicate_files_total,
             }
         )
 
-    stack = list(reversed(roots))
+    have_excludes = bool(excluded_paths)
     emit_progress("scanning", roots[0], force=True)
-    while stack:
-        _raise_if_cancelled(cancel_event)
-        directory = stack.pop()
-        emit_progress("scanning", directory)
-        if (
-            _is_excluded(directory, excluded_paths)
-            or _is_automatic_excluded_directory(directory)
-        ):
-            skipped_excluded_paths += 1
-            continue
-        try:
-            with os.scandir(directory) as entries:
-                for entry in entries:
-                    _raise_if_cancelled(cancel_event)
-                    path = Path(entry.path)
-                    try:
-                        if entry.is_symlink():
-                            skipped_symlinks += 1
-                            continue
-                        if _is_excluded(path, excluded_paths):
-                            skipped_excluded_paths += 1
-                            continue
-                        if entry.is_dir(follow_symlinks=False):
-                            if _is_automatic_excluded_directory(path):
-                                skipped_excluded_paths += 1
-                                continue
-                            if (
-                                not options.include_cloud_storage
-                                and _is_cloud_container(path)
-                            ):
-                                skipped_cloud_dirs += 1
-                                continue
-                            stack.append(path)
-                            continue
-                        if not entry.is_file(follow_symlinks=False):
-                            continue
-                        stat = entry.stat(follow_symlinks=False)
-                    except PermissionError:
-                        permission_denied += 1
-                        continue
-                    except OSError as exc:
-                        if len(errors) < 20:
-                            errors.append(f"파일 건너뜀: {path} ({exc})")
-                        continue
 
-                    scanned_files += 1
-                    allocated_size = _allocated_size(stat)
-                    scanned_bytes += allocated_size
-                    scanned_logical_bytes += stat.st_size
-                    cache_match = _cache_bucket(path)
-                    if cache_match is not None:
-                        bucket_path, rule = cache_match
-                        aggregate = cache_aggregates.setdefault(
-                            bucket_path, _CacheAggregate(rule=rule)
-                        )
-                        aggregate.size += allocated_size
-                        aggregate.logical_size += stat.st_size
-                        aggregate.file_count += 1
-                    else:
-                        candidate = _file_candidate(
-                            path,
-                            allocated_size,
-                            stat.st_size,
-                            stat.st_mtime,
-                            options,
-                            now,
-                        )
-                        if candidate is not None:
-                            file_candidates.append(candidate)
-
-                    if (
-                        options.find_duplicates
-                        and stat.st_size >= options.duplicate_min_bytes
-                    ):
-                        duplicate_buckets[stat.st_size].append(
-                            (path, allocated_size)
-                        )
-                    emit_progress("scanning", path)
-        except PermissionError:
-            permission_denied += 1
-        except OSError as exc:
-            if len(errors) < 20:
-                errors.append(f"폴더 건너뜀: {directory} ({exc})")
+    # 레벨 단위 병렬 BFS: 같은 깊이의 디렉터리들을 스레드 풀로 동시에 훑는다.
+    # scandir·stat은 GIL을 놓는 I/O라 병렬로 겹쳐지고, 출력은 순서 독립적이라
+    # (최종 정렬·합산) 병합 순서와 무관하게 직렬 스캔과 동일한 결과를 낸다.
+    workers = min(8, (os.cpu_count() or 2) + 2)
+    level: list[Path] = list(roots)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        while level:
+            _raise_if_cancelled(cancel_event)
+            directories_pending = len(level)
+            results = list(
+                executor.map(
+                    lambda d: _scan_directory(
+                        d, options, now, excluded_paths, have_excludes, cancel_event
+                    ),
+                    level,
+                )
+            )
+            _raise_if_cancelled(cancel_event)
+            next_level: list[Path] = []
+            for directory, r in zip(level, results):
+                scanned_files += r.scanned_files
+                scanned_bytes += r.scanned_bytes
+                scanned_logical_bytes += r.scanned_logical
+                skipped_symlinks += r.skipped_symlinks
+                skipped_cloud_dirs += r.skipped_cloud_dirs
+                skipped_excluded_paths += r.skipped_excluded_paths
+                permission_denied += r.permission_denied
+                if r.bucket is not None and r.cache_count:
+                    bucket_path, rule = r.bucket
+                    aggregate = cache_aggregates.setdefault(
+                        bucket_path, _CacheAggregate(rule=rule)
+                    )
+                    aggregate.size += r.cache_size
+                    aggregate.logical_size += r.cache_logical
+                    aggregate.file_count += r.cache_count
+                if r.candidates:
+                    file_candidates.extend(r.candidates)
+                for size, item in r.dup_entries:
+                    duplicate_buckets[size].append(item)
+                for message in r.errors:
+                    if len(errors) < 20:
+                        errors.append(message)
+                next_level.extend(r.subdirs)
+                emit_progress("scanning", directory)
+            level = next_level
 
     cache_candidates = [
         CacheCandidate(
