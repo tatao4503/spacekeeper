@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from . import diagnostics, engine, notifier
+from . import diagnostics, engine, favorites, history, notifier
 from .apps import scan_apps
 from .models import ScanOptions
 from .planning import _action_id, build_cleanup_plan
@@ -227,6 +227,7 @@ class _State:
             }
             job.result = payload
             job.status = "completed"
+            history.record_scan(payload)
             notifier.notify_scan_complete(
                 payload.get("review_bytes", 0),
                 payload.get("candidate_count", 0),
@@ -692,6 +693,10 @@ class _Handler(BaseHTTPRequestHandler):
                     server_host=str(self.server.server_address[0])
                 )
             )
+        elif route.path == "/api/history":
+            self._send_json({"records": history.load_history()})
+        elif route.path == "/api/favorites":
+            self._send_json({"favorites": favorites.load_favorites()})
         elif route.path == "/api/space-tree":
             query_path = parse_qs(route.query).get("path", [""])[0]
             target = Path(query_path).expanduser() if query_path else Path.home() / "Downloads"
@@ -920,6 +925,9 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, status=500)
                 return
             if outcome.moved:
+                history.record_operation(
+                    "quarantine", len(outcome.moved), outcome.quarantined_bytes
+                )
                 notifier.notify_quarantine_action(
                     restored=False,
                     item_count=len(outcome.moved),
@@ -954,6 +962,7 @@ class _Handler(BaseHTTPRequestHandler):
             except OSError as exc:
                 self._send_json({"error": f"복원 중 오류가 발생했습니다: {exc}"}, status=500)
                 return
+            history.record_operation("restore", 1, record.allocated_bytes)
             notifier.notify_quarantine_action(
                 restored=True,
                 item_count=1,
@@ -989,6 +998,12 @@ class _Handler(BaseHTTPRequestHandler):
                     status=500,
                 )
                 return
+            if emptied:
+                history.record_operation(
+                    "empty",
+                    len(emptied),
+                    sum(getattr(r, "allocated_bytes", 0) for r in emptied),
+                )
             self._send_json(
                 {"emptied": [r.to_dict() for r in emptied], "count": len(emptied)}
             )
@@ -1046,6 +1061,29 @@ class _Handler(BaseHTTPRequestHandler):
             payload = to_dict(config)
             payload["agent_installed"] = is_agent_installed()
             self._send_json(payload)
+        elif route.path == "/api/favorites":
+            action = body.get("action")
+            path = body.get("path")
+            if not isinstance(path, str) or not path:
+                self._send_json({"error": "경로가 필요합니다."}, status=400)
+                return
+            try:
+                if action == "add":
+                    result = favorites.add_favorite(path)
+                elif action == "remove":
+                    result = favorites.remove_favorite(path)
+                else:
+                    self._send_json({"error": "지원하지 않는 동작입니다."}, status=400)
+                    return
+            except favorites.FavoriteError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            except OSError as exc:
+                self._send_json(
+                    {"error": f"즐겨찾기를 저장하지 못했습니다: {exc}"}, status=500
+                )
+                return
+            self._send_json({"favorites": result})
         else:
             self.send_error(404)
 

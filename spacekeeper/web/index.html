@@ -71,6 +71,10 @@
           <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8Z" /><path d="M8 8V5h8v3M9 12v4m6-4v4" /></svg></span>
           <span>격리함</span>
         </button>
+        <button class="nav-item" type="button" data-view="history" title="기록">
+          <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 4v4h4" /><path d="M12 8v4l3 2" /></svg></span>
+          <span>기록</span>
+        </button>
         <button class="nav-item" type="button" data-view="schedule" title="자동 정리">
           <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg></span>
           <span>자동 정리</span>
@@ -121,6 +125,10 @@
                 <option value="custom">경로 직접 입력</option>
               </select>
               <input id="path-input" type="text" placeholder="예: ~/Documents/Archive" />
+              <button id="fav-add" class="fav-add-btn" type="button"
+                title="이 위치를 즐겨찾기에 추가" aria-label="이 위치를 즐겨찾기에 추가">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7L12 17.9l-5.1 2.4 1-5.7-4.1-4 5.7-.8z"/></svg>
+              </button>
             </span>
           </label>
           <label class="option-card">
@@ -132,6 +140,7 @@
             분석 시작
           </button>
         </div>
+        <div id="fav-list" class="fav-list" hidden aria-label="즐겨찾는 위치"></div>
         <details class="scan-advanced">
           <summary><span class="summary-icon">+</span> 분석 범위 설정</summary>
           <div class="advanced-row">
@@ -495,6 +504,21 @@
 
       <p class="diagnostics-footnote">※ 이 결과는 macOS의 전체 권한 목록을 추측하지 않고, 현재 프로세스에서 실제 읽기·임시 쓰기를 수행한 결과입니다.
       </p>
+    </section>
+
+    <!-- 기록 -->
+    <section id="view-history" class="view">
+      <header class="page-header compact">
+        <div>
+          <h1>기록</h1>
+          <p>스캔과 정리 활동을 이 Mac 안에만 남깁니다. 시간에 따라 무엇이 얼마나 쌓이고 정리됐는지 보세요.</p>
+        </div>
+        <div class="spacer"></div>
+        <button id="history-refresh" class="btn ghost" type="button">새로고침</button>
+      </header>
+      <div id="history-trend" class="history-trend"></div>
+      <h2 class="history-subhead">활동 로그</h2>
+      <div id="history-log" class="history-log"></div>
     </section>
   </main>
 

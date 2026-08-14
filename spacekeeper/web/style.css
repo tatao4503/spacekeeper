@@ -1397,3 +1397,70 @@ select::-ms-expand { display: none; }
   border: 3px solid transparent; background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--faint); background-clip: content-box; }
+
+/* 기록 — 추이 차트 + 활동 로그 */
+.history-trend { margin-top: 16px; }
+.trend-card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px;
+}
+.trend-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 12px; flex-wrap: wrap; }
+.trend-label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.trend-range { font-size: 12.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.trend-range b { color: var(--text); }
+.trend-svg { display: block; width: 100%; height: 120px; overflow: visible; }
+.trend-area { fill: var(--accent-soft); stroke: none; }
+.trend-line { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.trend-svg circle { fill: var(--accent); }
+.trend-empty { color: var(--muted); font-size: 13px; padding: 20px 4px; text-align: center; }
+
+.history-subhead { font-size: 15px; font-weight: 660; margin: 26px 0 12px; letter-spacing: -0.02em; }
+.history-log {
+  display: flex; flex-direction: column; gap: 0;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; overflow: hidden; box-shadow: var(--shadow);
+}
+.hist-row {
+  display: flex; align-items: center; gap: 13px; padding: 12px 16px;
+  border-bottom: 1px solid var(--line); border-left: 3px solid transparent;
+}
+.history-log > .hist-row:last-child { border-bottom: none; }
+.hist-scan { border-left-color: var(--accent); }
+.hist-quarantine { border-left-color: var(--medium); }
+.hist-restore { border-left-color: var(--low); }
+.hist-empty { border-left-color: var(--high); }
+.hist-icon { font-size: 17px; width: 24px; text-align: center; flex-shrink: 0; }
+.hist-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.hist-kind { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.hist-detail { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-time { font-size: 11.5px; color: var(--faint); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+/* 즐겨찾는 위치 — ⭐ 버튼 + 칩 */
+.fav-add-btn {
+  flex: 0 0 auto; width: 44px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; cursor: pointer;
+  color: var(--faint); transition: color 0.14s, border-color 0.14s, background 0.14s;
+}
+.fav-add-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.fav-add-btn:hover { color: var(--medium); border-color: var(--line-strong); }
+.fav-add-btn:active { background: var(--panel); }
+.fav-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.fav-chip {
+  display: inline-flex; align-items: center;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; overflow: hidden;
+  transition: border-color 0.14s;
+}
+.fav-chip:hover { border-color: var(--line-strong); }
+.fav-chip-open {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 4px 6px 12px;
+  background: transparent; border: none; color: var(--text); font: inherit; font-size: 12.5px;
+  font-weight: 500; cursor: pointer; max-width: 220px;
+}
+.fav-chip-open svg { width: 13px; height: 13px; fill: var(--medium); flex-shrink: 0; }
+.fav-chip-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fav-chip-open:hover { color: var(--accent); }
+.fav-chip-remove {
+  background: transparent; border: none; color: var(--faint); cursor: pointer;
+  padding: 7px 11px 7px 5px; font-size: 11px; line-height: 1;
+}
+.fav-chip-remove:hover { color: var(--high); }

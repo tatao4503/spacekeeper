@@ -26,6 +26,11 @@ const EN = {
     "We find cleanup candidates. You quarantine only what you approve.",
   "이 Mac에서만 분석": "Analyzed on this Mac only",
   "분석할 위치": "Location to analyze",
+  "이 위치를 즐겨찾기에 추가": "Save this location to favorites",
+  "즐겨찾는 위치": "Favorite locations",
+  "즐겨찾기에서 제거": "Remove from favorites",
+  "즐겨찾기에 추가했습니다.": "Added to favorites.",
+  "먼저 분석할 경로를 골라주세요.": "Choose a location to analyze first.",
   "다운로드 폴더": "Downloads",
   "홈 폴더 전체": "Entire home folder",
   "데스크탑": "Desktop",
@@ -555,6 +560,17 @@ const EN = {
   "격리하기": "Quarantine",
   "휴지통으로 보낼까요?": "Move to Trash?",
   "휴지통으로 보내기": "Move to Trash",
+
+  // 기록 (추이 + 활동 로그)
+  "기록": "History",
+  "스캔과 정리 활동을 이 Mac 안에만 남깁니다. 시간에 따라 무엇이 얼마나 쌓이고 정리됐는지 보세요.":
+    "Scan and cleanup activity is kept only on this Mac. See what piles up and gets cleared over time.",
+  "활동 로그": "Activity log",
+  "기록을 불러오는 중…": "Loading history…",
+  "스캔": "Scan",
+  "격리": "Quarantine",
+  "복원": "Restore",
+  "휴지통으로": "To Trash",
 };
 
 /**

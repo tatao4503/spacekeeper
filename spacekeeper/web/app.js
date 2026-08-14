@@ -299,6 +299,97 @@ function updateScanCta() {
   document.getElementById("scan-btn-2").textContent = `${scanTargetLabel()} 분석하기`;
 }
 
+/* ---------- 즐겨찾는 위치 ---------- */
+function currentScanPath() {
+  const preset = document.getElementById("preset").value;
+  if (preset === "downloads") return "~/Downloads";
+  if (preset === "home") return "~";
+  if (preset === "desktop") return "~/Desktop";
+  return document.getElementById("path-input").value.trim();
+}
+
+function favLabel(path) {
+  const clean = path.replace(/\/+$/, "");
+  const name = clean.split("/").pop() || clean;
+  return name === "" ? clean : name;
+}
+
+async function loadFavorites() {
+  try {
+    const data = await api("/api/favorites");
+    renderFavorites(data.favorites || []);
+  } catch (_) {
+    renderFavorites([]);
+  }
+}
+
+function renderFavorites(paths) {
+  const list = document.getElementById("fav-list");
+  if (!list) return;
+  list.innerHTML = "";
+  list.hidden = paths.length === 0;
+  for (const path of paths) {
+    const chip = document.createElement("span");
+    chip.className = "fav-chip";
+    chip.title = path;
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "fav-chip-open";
+    open.innerHTML =
+      `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7L12 17.9l-5.1 2.4 1-5.7-4.1-4 5.7-.8z"/></svg>` +
+      `<span>${escapeHtml(favLabel(path))}</span>`;
+    open.addEventListener("click", () => {
+      const preset = document.getElementById("preset");
+      preset.value = "custom";
+      preset.dispatchEvent(new Event("change"));
+      const input = document.getElementById("path-input");
+      input.value = path;
+      input.dispatchEvent(new Event("input"));
+      runScan();
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "fav-chip-remove";
+    remove.setAttribute("aria-label", "즐겨찾기에서 제거");
+    remove.textContent = "✕";
+    remove.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      try {
+        const data = await api("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "remove", path }),
+        });
+        renderFavorites(data.favorites || []);
+      } catch (err) {
+        toast(err.message, "err");
+      }
+    });
+    chip.appendChild(open);
+    chip.appendChild(remove);
+    list.appendChild(chip);
+  }
+}
+
+async function addCurrentFavorite() {
+  const path = currentScanPath();
+  if (!path) {
+    toast("먼저 분석할 경로를 골라주세요.", "err");
+    return;
+  }
+  try {
+    const data = await api("/api/favorites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "add", path }),
+    });
+    renderFavorites(data.favorites || []);
+    toast("즐겨찾기에 추가했습니다.", "ok");
+  } catch (err) {
+    toast(err.message, "err");
+  }
+}
+
 function setScanControlsBusy(busy) {
   document.getElementById("scan-btn").disabled = busy;
   document.getElementById("scan-btn-2").disabled = busy;
@@ -1613,6 +1704,114 @@ function switchView(view) {
   if (view === "startup") loadStartup();
   if (view === "photos" && !lastPhotos) loadPhotos();
   if (view === "decide" && !lastDecide) loadDecide();
+  if (view === "history") loadHistory();
+}
+
+/* ---------- 기록 (추이 + 활동 로그) ---------- */
+async function loadHistory() {
+  const trend = document.getElementById("history-trend");
+  const log = document.getElementById("history-log");
+  trend.innerHTML = `<div class="q-empty is-loading">기록을 불러오는 중…</div>`;
+  log.innerHTML = "";
+  try {
+    const data = await api("/api/history");
+    renderHistory(data.records || []);
+  } catch (e) {
+    trend.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function historyTimeLabel(ts) {
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  if (sameDay) return isEn() ? `Today ${hm}` : `오늘 ${hm}`;
+  const md = isEn()
+    ? `${d.getMonth() + 1}/${d.getDate()}`
+    : `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  return `${md} ${hm}`;
+}
+
+function renderTrendChart(scans) {
+  if (scans.length < 2) {
+    const only = scans.length === 1 ? fmtBytes(scans[0].reclaimable_bytes || 0) : "–";
+    return `<div class="trend-empty">${
+      isEn()
+        ? "Run a couple of scans to see the trend."
+        : "스캔을 몇 번 하면 추이가 보여요."
+    }${scans.length === 1 ? ` (${TR("정리 후보 용량")}: ${only})` : ""}</div>`;
+  }
+  const pts = scans.slice(-20);
+  const vals = pts.map((s) => s.reclaimable_bytes || 0);
+  const max = Math.max(...vals, 1);
+  const W = 640, H = 120, pad = 6;
+  const step = (W - pad * 2) / (pts.length - 1);
+  const y = (v) => H - pad - (v / max) * (H - pad * 2);
+  const coords = pts.map((s, i) => [pad + i * step, y(s.reclaimable_bytes || 0)]);
+  const line = coords.map(([x, yy], i) => `${i ? "L" : "M"}${x.toFixed(1)},${yy.toFixed(1)}`).join(" ");
+  const area = `${line} L${coords[coords.length - 1][0].toFixed(1)},${H - pad} L${pad},${H - pad} Z`;
+  const dots = coords
+    .map(([x, yy]) => `<circle cx="${x.toFixed(1)}" cy="${yy.toFixed(1)}" r="2.5" />`)
+    .join("");
+  const first = fmtBytes(vals[0]);
+  const last = fmtBytes(vals[vals.length - 1]);
+  return `
+    <div class="trend-head">
+      <span class="trend-label">${TR("정리 후보 용량")} ${isEn() ? "trend" : "추이"}</span>
+      <span class="trend-range">${first} → <b>${last}</b> · ${isEn() ? `${pts.length} scans` : `${pts.length}회 스캔`}</span>
+    </div>
+    <svg class="trend-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img">
+      <path class="trend-area" d="${area}" />
+      <path class="trend-line" d="${line}" />
+      ${dots}
+    </svg>`;
+}
+
+const HISTORY_META = {
+  scan: { icon: "🔍", cls: "scan", label: "스캔" },
+  quarantine: { icon: "📦", cls: "quarantine", label: "격리" },
+  restore: { icon: "↩︎", cls: "restore", label: "복원" },
+  empty: { icon: "🗑️", cls: "empty", label: "휴지통으로" },
+};
+
+function renderHistory(records) {
+  const trend = document.getElementById("history-trend");
+  const log = document.getElementById("history-log");
+  if (!records.length) {
+    trend.innerHTML = `<div class="q-empty">${
+      isEn() ? "No activity yet. Run a scan to get started." : "아직 활동 기록이 없어요. 스캔부터 해보세요."
+    }</div>`;
+    log.innerHTML = "";
+    return;
+  }
+  const scans = records.filter((r) => r.type === "scan");
+  trend.innerHTML = `<div class="trend-card">${renderTrendChart(scans)}</div>`;
+
+  log.innerHTML = "";
+  for (const r of records.slice().reverse()) {
+    const meta = HISTORY_META[r.type] || { icon: "•", cls: "scan", label: r.type };
+    const row = document.createElement("div");
+    row.className = `hist-row hist-${meta.cls}`;
+    let detail;
+    if (r.type === "scan") {
+      detail = isEn()
+        ? `${fmtBytes(r.reclaimable_bytes || 0)} reclaimable · ${(r.scanned_files || 0).toLocaleString()} files`
+        : `정리 후보 ${fmtBytes(r.reclaimable_bytes || 0)} · 파일 ${(r.scanned_files || 0).toLocaleString()}개`;
+    } else {
+      detail = isEn()
+        ? `${r.count || 0} items · ${fmtBytes(r.bytes || 0)}`
+        : `${r.count || 0}개 · ${fmtBytes(r.bytes || 0)}`;
+    }
+    row.innerHTML = `
+      <span class="hist-icon" aria-hidden="true">${meta.icon}</span>
+      <span class="hist-main">
+        <span class="hist-kind">${TR(meta.label)}</span>
+        <span class="hist-detail">${detail}</span>
+      </span>
+      <span class="hist-time">${historyTimeLabel(r.ts || 0)}</span>`;
+    log.appendChild(row);
+  }
 }
 
 /* ---------- 비슷한 사진 ---------- */
@@ -1815,6 +2014,8 @@ document.addEventListener("DOMContentLoaded", () => {
   updateScanCta();
   document.getElementById("scan-btn").addEventListener("click", runScan);
   document.getElementById("scan-btn-2").addEventListener("click", runScan);
+  document.getElementById("fav-add")?.addEventListener("click", addCurrentFavorite);
+  loadFavorites();
   document.getElementById("cancel-scan").addEventListener("click", cancelScan);
   document.getElementById("result-search").addEventListener("input", renderFilteredResults);
   document.getElementById("risk-filter").addEventListener("change", renderFilteredResults);
@@ -1833,7 +2034,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const shortcutModal = document.getElementById("shortcut-modal");
   document.getElementById("close-shortcut-modal")?.addEventListener("click", () => shortcutModal?.close());
 
-  const navOrder = ["dashboard", "spacetree", "largefiles", "duplicates", "photos", "decide", "apps", "browsercache", "startup", "quarantine", "schedule", "diagnostics"];
+  const navOrder = ["dashboard", "spacetree", "largefiles", "duplicates", "photos", "decide", "apps", "browsercache", "startup", "quarantine", "history", "schedule", "diagnostics"];
   const fromHash = location.hash.slice(1);
   if (navOrder.includes(fromHash)) switchView(fromHash);
 
@@ -1874,6 +2075,7 @@ document.addEventListener("DOMContentLoaded", () => {
     exportLastScan(e);
   });
   wireToolMenu();
+  document.getElementById("history-refresh")?.addEventListener("click", loadHistory);
 
   document.getElementById("reclaim-btn").addEventListener("click", async (e) => {
     const ids = [...selDash];
