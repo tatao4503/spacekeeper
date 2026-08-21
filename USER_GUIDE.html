@@ -61,6 +61,7 @@ table, blockquote, .callout { page-break-inside: avoid; }
 <tbody>
 <tr><td><strong>공간 요약</strong></td><td>메인 대시보드. 위치를 정해 분석하고, 되찾을 수 있는 용량·위험도 분포·정리 후보 목록을 본다. 도넛은 남은 공간, 큰 숫자는 정리 후보 용량.</td></tr>
 <tr><td><strong>디스크 지도</strong></td><td>어떤 폴더가 공간을 많이 쓰는지 크기 블록(트리맵)으로 한눈에. 블록을 눌러 안으로 들어간다.</td></tr>
+<tr><td><strong>시스템 데이터</strong></td><td>macOS 저장공간이 '시스템 데이터'로 뭉뚱그린 덩어리를 실제 폴더로 분해한다. <strong>이 화면만 홈 폴더 밖까지</strong> 살펴본다(시뮬레이터, /Library, /private/var). 읽기 전용 — 여기서는 아무것도 옮기거나 지우지 않는다.</td></tr>
 </tbody>
 </table>
 
@@ -90,6 +91,7 @@ table, blockquote, .callout { page-break-inside: avoid; }
 <thead><tr><th>화면</th><th>하는 일</th></tr></thead>
 <tbody>
 <tr><td><strong>격리함</strong></td><td>옮겨 둔 항목 보관소. 원위치로 <strong>복원</strong>하거나, 직접 확인한 것만 macOS <strong>휴지통</strong>으로 보낸다.</td></tr>
+<tr><td><strong>기록</strong></td><td>스캔·격리·복원·휴지통 활동이 시간순으로 남는다. 정리 후보 용량이 어떻게 변해 왔는지 추이 그래프로 보여준다. 전부 이 Mac 안에만 저장된다.</td></tr>
 <tr><td><strong>자동 정리</strong></td><td>기본은 알림만 제공. 직접 켜고 한 번 더 확인한 경우에만 패키지 다운로드·도구 캐시를 자동 격리하도록 예약.</td></tr>
 <tr><td><strong>환경 진단</strong></td><td>보호 폴더 읽기·격리·복원이 실제로 동작하는지 점검.</td></tr>
 </tbody>
@@ -107,6 +109,26 @@ table, blockquote, .callout { page-break-inside: avoid; }
 <div class="callout">
 <p><strong>격리함 위치</strong>는 <code>~/.spacekeeper/quarantine/</code>. 무슨 일이 있어도 여기 있는 것은 앱이 지우지 않는다. 최종 삭제는 오직 사용자가 Finder에서 휴지통을 비울 때.</p>
 </div>
+<hr />
+
+<h2 id="sysdata">🧩 '시스템 데이터'가 수십 기가인 이유</h2>
+<p>macOS 저장공간 설정은 분류하기 애매한 것을 전부 <strong>'시스템 데이터'</strong> 하나로 뭉쳐서 보여준다. 그래서 갑자기 100GB가 넘어도 그게 뭔지 알 방법이 없다. <code>시스템 데이터</code> 화면이 그 덩어리를 실제 폴더로 분해한다.</p>
+<div class="callout">
+<p><strong>이 화면만 홈 폴더 밖까지 본다.</strong> 다른 화면은 안전을 위해 홈 폴더 안만 다루지만, 그 덩어리의 상당 부분은 <code>/Library/Developer</code>(Xcode 시뮬레이터), <code>/private/var</code>(스왑·임시) 처럼 홈 밖에 있다. 개발자 Mac에서는 시뮬레이터 런타임만 수십 GB인 경우가 흔하다.</p>
+</div>
+<h3>세 가지 처리 등급</h3>
+<table>
+<thead><tr><th>배지</th><th>뜻</th><th>어떻게</th></tr></thead>
+<tbody>
+<tr><td><strong>앱에서 정리 가능</strong></td><td>홈 폴더 안이고 다시 만들 수 있는 것(캐시, 빌드 산출물)</td><td><code>공간 요약</code>에서 분석하면 항목으로 잡히고, 평소처럼 격리·복원할 수 있다.</td></tr>
+<tr><td><strong>직접 정리</strong></td><td>전용 도구로만 안전하게 지워지는 것(시뮬레이터 런타임, 앱 데이터)</td><td>앱은 <strong>실행하지 않는다.</strong> 무엇인지 설명하고 공식 명령을 보여줄 뿐이며, 복사해서 직접 실행한다.</td></tr>
+<tr><td><strong>macOS가 관리</strong></td><td>스왑, 시스템 임시 파일, 로그</td><td>손대지 않는다. macOS가 알아서 늘리고 줄인다.</td></tr>
+</tbody>
+</table>
+<div class="callout safe">
+<p><strong>왜 앱이 대신 지워주지 않나.</strong> 이 앱의 안전 모델은 '삭제가 아니라 격리, 언제든 복원'이다. 홈 밖의 시스템 파일은 격리로 되돌릴 수 없고, 잘못 건드리면 Xcode나 시스템이 망가진다. 되돌릴 수 없는 일은 앱이 하지 않고 사용자가 직접 한다 — 그게 이 도구가 지키는 선이다.</p>
+</div>
+<p class="sd-guide-note" style="font-size:10pt;color:#666;">숫자가 macOS 저장공간 설정과 정확히 일치하지 않을 수 있다. 분류 기준이 다르고, APFS 공유 블록 때문이다. 화면에서도 이 점을 밝힌다.</p>
 <hr />
 
 <h2 id="auto">⚙️ 자동 정리</h2>

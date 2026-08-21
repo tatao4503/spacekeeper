@@ -27,6 +27,10 @@
           <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="10" height="10" rx="1" /><rect x="15" y="3" width="6" height="10" rx="1" /><rect x="3" y="15" width="18" height="6" rx="1" /></svg></span>
           <span>디스크 지도</span>
         </button>
+        <button class="nav-item" type="button" data-view="systemdata" title="시스템 데이터">
+          <span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="8" ry="2.8" /><path d="M4 5.5v6c0 1.5 3.6 2.8 8 2.8s8-1.3 8-2.8v-6" /><path d="M4 11.5v6c0 1.5 3.6 2.8 8 2.8s8-1.3 8-2.8v-6" /></svg></span>
+          <span>시스템 데이터</span>
+        </button>
       </div>
 
       <div class="nav-group">
@@ -268,6 +272,20 @@
       </header>
       <div id="tree-breadcrumb" class="tree-breadcrumb"></div>
       <div id="tree-view-container" class="tree-view-container"></div>
+    </section>
+
+    <!-- 시스템 데이터 -->
+    <section id="view-systemdata" class="view">
+      <header class="page-header compact">
+        <div>
+          <h1>시스템 데이터</h1>
+          <p>macOS가 '시스템 데이터'로 뭉뚱그린 덩어리가 실제로 어떤 폴더인지 분해합니다. 홈 폴더 밖까지 살펴보며, 여기서는 아무것도 옮기거나 지우지 않습니다.</p>
+        </div>
+        <div class="spacer"></div>
+        <button id="sd-scan" class="btn primary" type="button">시스템 데이터 분석</button>
+      </header>
+      <div id="sd-summary" class="sd-summary" hidden></div>
+      <div id="sd-list" class="sd-list"></div>
     </section>
 
     <!-- 중복 파일 -->

@@ -1407,6 +1407,112 @@ function renderTreemap(treeNode) {
   });
 }
 
+/* ---------- 시스템 데이터 해부 ---------- */
+const SD_ACTION = {
+  quarantine: { label: "앱에서 정리 가능", cls: "low" },
+  command: { label: "직접 정리", cls: "medium" },
+  system: { label: "macOS가 관리", cls: "high" },
+};
+
+async function loadSystemData() {
+  const list = document.getElementById("sd-list");
+  const summary = document.getElementById("sd-summary");
+  const button = document.getElementById("sd-scan");
+  if (!list) return;
+  list.innerHTML = `<div class="q-empty is-loading">시스템 데이터를 살펴보는 중… 홈 폴더 밖까지 훑기 때문에 시간이 걸립니다.</div>`;
+  summary.hidden = true;
+  if (button) button.disabled = true;
+  try {
+    const data = await api("/api/system-data");
+    renderSystemData(data);
+  } catch (e) {
+    list.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function renderSystemData(data) {
+  const summary = document.getElementById("sd-summary");
+  const list = document.getElementById("sd-list");
+  const total = data.total_bytes || 0;
+
+  summary.hidden = false;
+  summary.innerHTML = `
+    <div class="sd-total">
+      <div class="sd-total-label">시스템 데이터로 잡히는 용량</div>
+      <div class="sd-total-value">${fmtBytes(total)}</div>
+      <div class="sd-total-meta">
+        <span>홈 폴더 밖 <b>${fmtBytes(data.outside_home_bytes || 0)}</b></span>
+        <span class="sep">·</span>
+        <span>이 앱에서 정리 가능 <b>${fmtBytes(data.quarantinable_bytes || 0)}</b></span>
+        <span class="sep">·</span>
+        <span>디스크 여유 <b>${fmtBytes(data.disk?.free || 0)}</b></span>
+      </div>
+    </div>
+    <p class="sd-note">측정은 실제 할당 블록 기준입니다. macOS 저장공간 설정이 보여주는 '시스템 데이터' 숫자와는 분류 기준이 달라 정확히 일치하지 않을 수 있습니다.</p>`;
+
+  list.innerHTML = "";
+  if (!data.items || !data.items.length) {
+    list.innerHTML = `<div class="q-empty">측정된 시스템 데이터 영역이 없습니다.</div>`;
+    return;
+  }
+  const max = data.items[0].size || 1;
+  for (const item of data.items) {
+    const meta = SD_ACTION[item.action] || SD_ACTION.system;
+    const pct = Math.max(2, Math.round((item.size / max) * 100));
+    const el = document.createElement("div");
+    el.className = "card sd-item";
+    const bodyId = `sd-body-${item.key}`;
+    el.innerHTML = `
+      <button type="button" class="sd-head" aria-expanded="false" aria-controls="${bodyId}">
+        <span class="sd-main">
+          <span class="sd-name">
+            ${escapeHtml(item.name)}
+            ${item.outside_home ? '<span class="sd-tag">홈 폴더 밖</span>' : ""}
+          </span>
+          <span class="sd-path">${escapeHtml(item.display_path)}</span>
+          <span class="sd-bar"><i style="width:${pct}%"></i></span>
+        </span>
+        <span class="sd-size">${fmtBytes(item.size)}</span>
+        <span class="badge ${meta.cls}">${meta.label}</span>
+        <span class="lf-caret" aria-hidden="true">›</span>
+      </button>
+      <div class="sd-body" id="${bodyId}" hidden>
+        <p class="sd-what">${escapeHtml(item.what)}</p>
+        <p class="sd-why"><b>왜 쌓이나</b> ${escapeHtml(item.why)}</p>
+        ${item.hint ? `<p class="sd-hint">${escapeHtml(item.hint)}</p>` : ""}
+        ${
+          item.command
+            ? `<div class="sd-cmd"><code>${escapeHtml(item.command)}</code>
+                 <button type="button" class="btn ghost small sd-copy">명령 복사</button></div>`
+            : ""
+        }
+      </div>`;
+    const head = el.querySelector(".sd-head");
+    const body = el.querySelector(".sd-body");
+    head.addEventListener("click", () => {
+      const open = body.hidden;
+      body.hidden = !open;
+      el.classList.toggle("signals-open", open);
+      head.setAttribute("aria-expanded", String(open));
+    });
+    const copy = el.querySelector(".sd-copy");
+    if (copy) {
+      copy.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(item.command);
+          toast("명령을 복사했습니다. 터미널에 붙여넣어 실행하세요.", "ok");
+        } catch (_) {
+          toast("복사하지 못했습니다. 명령을 직접 선택해 복사하세요.", "err");
+        }
+      });
+    }
+    list.appendChild(el);
+  }
+}
+
 /* ---------- Large Files ---------- */
 let lastLargeFiles = null;
 
@@ -2015,6 +2121,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("scan-btn").addEventListener("click", runScan);
   document.getElementById("scan-btn-2").addEventListener("click", runScan);
   document.getElementById("fav-add")?.addEventListener("click", addCurrentFavorite);
+  document.getElementById("sd-scan")?.addEventListener("click", loadSystemData);
   loadFavorites();
   document.getElementById("cancel-scan").addEventListener("click", cancelScan);
   document.getElementById("result-search").addEventListener("input", renderFilteredResults);
@@ -2034,7 +2141,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const shortcutModal = document.getElementById("shortcut-modal");
   document.getElementById("close-shortcut-modal")?.addEventListener("click", () => shortcutModal?.close());
 
-  const navOrder = ["dashboard", "spacetree", "largefiles", "duplicates", "photos", "decide", "apps", "browsercache", "startup", "quarantine", "history", "schedule", "diagnostics"];
+  const navOrder = ["dashboard", "spacetree", "systemdata", "largefiles", "duplicates", "photos", "decide", "apps", "browsercache", "startup", "quarantine", "history", "schedule", "diagnostics"];
   const fromHash = location.hash.slice(1);
   if (navOrder.includes(fromHash)) switchView(fromHash);
 

@@ -25,6 +25,144 @@ const EN = {
   "정리 후보를 찾아 드립니다. 확인한 항목만 안전하게 격리하세요.":
     "We find cleanup candidates. You quarantine only what you approve.",
   "이 Mac에서만 분석": "Analyzed on this Mac only",
+  // 시스템 데이터 해부
+  "시스템 데이터": "System Data",
+  "macOS가 '시스템 데이터'로 뭉뚱그린 덩어리가 실제로 어떤 폴더인지 분해합니다. 홈 폴더 밖까지 살펴보며, 여기서는 아무것도 옮기거나 지우지 않습니다.":
+    "Breaks down the blob macOS lumps together as \"System Data\" into the actual folders behind it. It looks outside your home folder too, and nothing here is moved or deleted.",
+  "시스템 데이터 분석": "Analyze system data",
+  "시스템 데이터를 살펴보는 중… 홈 폴더 밖까지 훑기 때문에 시간이 걸립니다.":
+    "Examining system data… this takes a while because it walks outside your home folder.",
+  "시스템 데이터로 잡히는 용량": "Counted as system data",
+  "홈 폴더 밖": "Outside home folder",
+  "이 앱에서 정리 가능": "Cleanable in this app",
+  "디스크 여유": "Disk free",
+  "측정은 실제 할당 블록 기준입니다. macOS 저장공간 설정이 보여주는 '시스템 데이터' 숫자와는 분류 기준이 달라 정확히 일치하지 않을 수 있습니다.":
+    "Sizes are measured from actual allocated blocks. macOS System Settings groups things differently, so its \"System Data\" figure may not match exactly.",
+  "측정된 시스템 데이터 영역이 없습니다.": "No system data areas were measured.",
+  "앱에서 정리 가능": "Cleanable here",
+  "직접 정리": "Clean it yourself",
+  "macOS가 관리": "Managed by macOS",
+  "왜 쌓이나": "Why it grows",
+  "명령 복사": "Copy command",
+  "명령을 복사했습니다. 터미널에 붙여넣어 실행하세요.":
+    "Command copied. Paste it into Terminal to run it.",
+  "복사하지 못했습니다. 명령을 직접 선택해 복사하세요.":
+    "Couldn't copy. Select the command and copy it manually.",
+  "시스템 데이터를 분석하지 못했습니다": "Could not analyze system data",
+
+  // 시스템 데이터 — 영역 이름
+  "iOS 시뮬레이터 런타임": "iOS Simulator runtimes",
+  "시뮬레이터 캐시": "Simulator caches",
+  "시뮬레이터 기기 데이터": "Simulator device data",
+  "Xcode 빌드 산출물 (DerivedData)": "Xcode build output (DerivedData)",
+  "iOS 기기 디버깅 심볼": "iOS device debug symbols",
+  "Xcode 아카이브": "Xcode archives",
+  "앱이 저장한 사용자 데이터": "App-stored user data",
+  "앱 샌드박스 컨테이너": "App sandbox containers",
+  "앱 그룹 데이터": "App group data",
+  "시스템 전역 앱 지원 파일": "System-wide app support files",
+  "Command Line Tools": "Command Line Tools",
+  "시스템 임시 파일": "System temporary files",
+  "가상 메모리 (스왑)": "Virtual memory (swap)",
+  "시스템 로그": "System logs",
+  "iPhone·iPad 백업": "iPhone / iPad backups",
+
+  // 시스템 데이터 — 설명
+  "Xcode 시뮬레이터가 쓰는 iOS·watchOS 런타임 디스크 이미지입니다.":
+    "Disk images of the iOS and watchOS runtimes the Xcode Simulator uses.",
+  "Xcode를 설치하거나 새 iOS 버전으로 시뮬레이터를 돌릴 때마다 런타임이 하나씩 쌓입니다. 옛 버전도 지우기 전까지 그대로 남습니다.":
+    "Each Xcode install or new iOS version you simulate adds another runtime, and older ones stay until you remove them.",
+  "위 명령으로 설치된 런타임을 확인한 뒤, 더 안 쓰는 것만 `xcrun simctl runtime delete <식별자>`로 지웁니다. Xcode → Settings → Platforms에서 눌러서 지워도 됩니다.":
+    "List the installed runtimes with the command above, then delete only the ones you no longer use with `xcrun simctl runtime delete <id>`. You can also remove them in Xcode → Settings → Platforms.",
+  "시뮬레이터가 런타임을 풀어놓고 쓰는 캐시입니다.":
+    "Cache the Simulator uses to unpack and run runtimes.",
+  "런타임을 받거나 시뮬레이터를 실행할 때 만들어지고, 오래된 것이 남아 있곤 합니다.":
+    "Created when runtimes are downloaded or simulators run; stale copies tend to linger.",
+  "더 이상 쓸 수 없는 시뮬레이터 기기와 그 데이터를 정리합니다. 필요하면 다시 만들어집니다.":
+    "Removes unavailable simulator devices and their data. They're recreated if needed.",
+  "시뮬레이터 기기별로 설치된 앱과 그 안의 데이터입니다.":
+    "Apps installed on each simulated device, plus their data.",
+  "시뮬레이터에서 앱을 돌릴 때마다 기기 폴더가 생기고, 만든 기기를 지우기 전까지 남습니다.":
+    "Running an app in the Simulator creates a device folder that stays until you delete the device.",
+  "지금 쓰는 기기는 두고 못 쓰는 것만 지웁니다. 특정 기기를 비우려면 `xcrun simctl erase <기기ID>`.":
+    "Keeps the devices you use and removes only unavailable ones. To wipe a specific device: `xcrun simctl erase <device-id>`.",
+  "Xcode가 빌드하면서 만든 중간 산출물과 인덱스입니다.":
+    "Intermediate build output and indexes Xcode created while building.",
+  "프로젝트를 빌드할 때마다 쌓이고, Xcode가 스스로 지우지 않습니다.":
+    "It accumulates with every build, and Xcode doesn't clear it on its own.",
+  "다시 빌드하면 그대로 만들어집니다. 정리 후 첫 빌드만 오래 걸립니다.":
+    "It's regenerated on the next build; only the first build after cleaning is slow.",
+  "연결했던 iPhone·iPad의 디버깅 심볼 파일입니다.":
+    "Debug symbol files for iPhones and iPads you've connected.",
+  "새 iOS 버전 기기를 연결할 때마다 그 버전의 심볼을 통째로 받아 둡니다.":
+    "Connecting a device on a new iOS version downloads that version's full symbol set.",
+  "지금 개발 중인 기기의 iOS 버전 폴더는 남기고, 옛 버전만 골라 지우세요. 지워도 그 기기를 다시 연결하면 재생성되지만 시간이 걸립니다.":
+    "Keep the iOS version you're currently developing against and remove only older ones. They're regenerated when you reconnect that device, but it takes time.",
+  "앱을 배포용으로 빌드할 때 남은 .xcarchive 파일입니다.":
+    ".xcarchive files left from distribution builds.",
+  "Archive 빌드를 할 때마다 하나씩 쌓입니다.": "One is added with every Archive build.",
+  "이미 출시한 버전의 아카이브에는 크래시 로그를 해석할 심볼이 들어 있습니다. 앱을 배포한 적이 있다면 지우기 전에 꼭 확인하세요.":
+    "Archives of shipped versions hold the symbols needed to read crash logs. If you've released the app, check carefully before deleting.",
+  "앱들이 각자 저장한 데이터입니다. 설정만 있는 앱도 있고, 대화 기록·모델·캐시를 통째로 넣어 두는 앱도 있습니다.":
+    "Data each app stores for itself — some keep only settings, others put entire histories, models, and caches here.",
+  "앱을 쓸수록 커집니다. 앱을 지워도 이 폴더는 남는 경우가 많습니다.":
+    "It grows as you use apps, and often stays behind even after an app is deleted.",
+  "위 명령으로 어느 앱이 큰지 확인하세요. 실행 중인 앱의 데이터를 지우면 그 앱의 기록이 사라질 수 있습니다. '앱과 관련 파일' 화면에서 앱별로 안전하게 볼 수 있습니다.":
+    "Use the command above to see which app is large. Deleting data for a running app can wipe its history. The Apps & leftovers screen shows this per app more safely.",
+  "샌드박스로 격리된 앱들이 자기 데이터를 넣어 두는 곳입니다.":
+    "Where sandboxed apps keep their own data.",
+  "App Store 앱과 샌드박스 앱이 쓸수록 커집니다. 앱을 지워도 남기도 합니다.":
+    "Grows as App Store and sandboxed apps are used, and can remain after deletion.",
+  "앱의 실제 사용자 데이터가 들어 있습니다. 폴더 이름이 앱 번들 ID라 무엇인지 확인한 뒤에만 손대세요.":
+    "These hold real user data. Folder names are bundle IDs — identify one before touching it.",
+  "여러 앱이 함께 쓰는 데이터(확장 프로그램, 위젯 등)입니다.":
+    "Data shared between apps and their extensions or widgets.",
+  "앱과 그 확장이 데이터를 주고받으며 쌓입니다.":
+    "Builds up as an app and its extensions share data.",
+  "컨테이너와 마찬가지로 실제 데이터입니다. 확인 없이 지우지 마세요.":
+    "Like containers, this is real data. Don't delete it unchecked.",
+  "앱들이 다시 만들 수 있는 데이터를 담아 두는 캐시입니다.":
+    "Caches holding data apps can rebuild.",
+  "앱을 쓰는 동안 계속 쌓이고, 앱이 스스로 비우지 않는 경우가 많습니다.":
+    "It keeps accumulating while you use apps, and many apps never clear it.",
+  "'공간 요약'에서 분석하면 이 안의 캐시가 항목별로 잡힙니다.":
+    "Running an analysis in Overview surfaces these caches item by item.",
+  "모든 사용자용으로 설치된 앱의 지원 파일입니다.":
+    "Support files for apps installed for all users.",
+  "앱이나 드라이버를 설치할 때 여기에 들어가고, 앱을 지워도 남는 경우가 있습니다.":
+    "Installers for apps and drivers write here, and files can remain after removal.",
+  "시스템 전역이라 관리자 권한이 필요합니다. 어떤 앱 것인지 확인되지 않으면 두세요. 앱을 제거할 땐 그 앱의 공식 제거 프로그램을 쓰는 게 안전합니다.":
+    "It's system-wide, so it needs admin rights. Leave anything you can't attribute to an app. When removing an app, its official uninstaller is the safe route.",
+  "git·clang 같은 개발자 명령줄 도구 모음입니다.":
+    "The developer command-line tools such as git and clang.",
+  "Xcode나 `xcode-select --install`로 설치됩니다.":
+    "Installed by Xcode or `xcode-select --install`.",
+  "개발에 계속 쓰이는 도구입니다. 지우면 git 같은 명령이 동작하지 않습니다. 그대로 두세요.":
+    "These are in constant use for development. Removing them breaks commands like git. Leave them alone.",
+  "앱과 시스템이 쓰는 임시 파일·캐시 영역입니다.":
+    "Scratch space for temporary files and caches used by apps and the system.",
+  "실행 중인 앱들이 계속 만들고, macOS가 시점을 봐서 정리합니다.":
+    "Running apps create it constantly, and macOS clears it when appropriate.",
+  "macOS가 관리합니다. 직접 지우면 실행 중인 앱이 오작동할 수 있습니다. 재시동하면 상당 부분 정리됩니다.":
+    "macOS manages this. Deleting it by hand can break running apps. A restart clears much of it.",
+  "메모리가 부족할 때 디스크로 밀어내는 스왑 파일입니다.":
+    "Swap files macOS writes to disk when memory runs short.",
+  "열어 둔 앱이 많고 메모리가 모자랄수록 커집니다.":
+    "The more apps you keep open with limited memory, the larger it gets.",
+  "macOS가 필요에 따라 자동으로 늘리고 줄입니다. 지우면 안 됩니다. 줄이고 싶으면 앱을 닫고 재시동하세요.":
+    "macOS grows and shrinks this automatically. Don't delete it — close apps and restart if you want it smaller.",
+  "macOS와 앱들이 남긴 진단 로그입니다.":
+    "Diagnostic logs written by macOS and apps.",
+  "문제를 추적할 수 있게 계속 기록되고, 오래된 것은 자동으로 회전됩니다.":
+    "They're written continuously for troubleshooting, and old ones rotate out automatically.",
+  "macOS가 알아서 오래된 로그를 지웁니다. 그대로 두어도 무한정 커지지 않습니다.":
+    "macOS prunes old logs itself, so this won't grow without bound.",
+  "Finder로 받은 iOS 기기 백업입니다.": "iOS device backups taken through Finder.",
+  "기기를 연결해 백업할 때마다 통째로 저장되고, 옛 백업도 지우기 전까지 남습니다.":
+    "Each backup stores the device in full, and older ones stay until removed.",
+  "기기를 복구할 때 필요한 실제 백업입니다. 지우기 전에 다른 백업(iCloud 등)이 있는지 꼭 확인하세요. Finder → 기기 → 백업 관리에서 지우는 게 안전합니다.":
+    "These are real backups you'd need to restore a device. Confirm another backup (iCloud, etc.) exists first. Deleting via Finder → device → Manage Backups is the safe route.",
+
   "분석할 위치": "Location to analyze",
   "이 위치를 즐겨찾기에 추가": "Save this location to favorites",
   "즐겨찾는 위치": "Favorite locations",

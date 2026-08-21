@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from . import diagnostics, engine, favorites, history, notifier
+from . import diagnostics, engine, favorites, history, notifier, systemdata
 from .apps import scan_apps
 from .models import ScanOptions
 from .planning import _action_id, build_cleanup_plan
@@ -693,6 +693,14 @@ class _Handler(BaseHTTPRequestHandler):
                     server_host=str(self.server.server_address[0])
                 )
             )
+        elif route.path == "/api/system-data":
+            try:
+                self._send_json(systemdata.analyze())
+            except OSError as exc:
+                self._send_json(
+                    {"error": f"시스템 데이터를 분석하지 못했습니다: {exc}"},
+                    status=500,
+                )
         elif route.path == "/api/history":
             self._send_json({"records": history.load_history()})
         elif route.path == "/api/favorites":
