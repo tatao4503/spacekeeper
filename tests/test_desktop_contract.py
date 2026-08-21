@@ -35,6 +35,44 @@ class DesktopBundleContractTests(unittest.TestCase):
             "-",
         )
 
+    def test_version_is_the_same_everywhere(self) -> None:
+        """버전이 네 곳(파이썬·Tauri·Cargo·npm)에 흩어져 있어 쉽게 어긋난다.
+
+        릴리스 파일명과 앱 정보가 서로 다른 버전을 말하면 사용자가 무엇을 받았는지
+        알 수 없으므로 여기서 묶어 둔다.
+        """
+        import re
+
+        from spacekeeper import __version__ as py_version
+
+        cargo = (TAURI_DIR / "Cargo.toml").read_text(encoding="utf-8")
+        cargo_version = re.search(r'^version\s*=\s*"([^"]+)"', cargo, re.M).group(1)
+        self.assertEqual(TAURI_CONFIG["version"], py_version)
+        self.assertEqual(PACKAGE_JSON["version"], py_version)
+        self.assertEqual(cargo_version, py_version)
+
+    def test_declared_support_matches_what_we_actually_ship(self) -> None:
+        """선언한 최소 macOS 버전이 실제 빌드(Apple Silicon 전용)와 맞아야 한다.
+
+        Tauri 기본값은 10.13인데, 우리는 arm64 바이너리만 낸다. 기본값을 그대로
+        두면 Info.plist가 Intel Mac도 지원한다고 거짓말하게 된다 — '정직한 숫자'를
+        내건 앱이 지원 범위를 속이는 셈이라 여기서 막는다.
+        """
+        minimum = TAURI_CONFIG["bundle"]["macOS"].get("minimumSystemVersion")
+        self.assertIsNotNone(minimum, "최소 macOS 버전을 명시해야 합니다")
+        self.assertGreaterEqual(
+            int(str(minimum).split(".")[0]),
+            11,
+            "Apple Silicon은 macOS 11부터입니다",
+        )
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn(
+            f"macOS {str(minimum).split('.')[0]}",
+            readme,
+            "README가 알리는 요구사항과 번들 설정이 어긋납니다",
+        )
+        self.assertIn("Apple Silicon", readme)
+
     def test_sidecar_is_self_contained_and_includes_web_assets(self) -> None:
         self.assertIn("--onedir", BUILD_SIDECAR)
         self.assertIn("spacekeeper/web:spacekeeper/web", BUILD_SIDECAR)
