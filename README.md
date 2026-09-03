@@ -44,14 +44,45 @@ library only — no third-party runtime dependencies.
 | | |
 |---|---|
 | **Overview** | Large files, old downloads, regenerable caches, build artifacts — grouped by category with a size bar per group |
-| **Space tree** | Treemap of what is actually using the disk |
+| **Space tree** | Proportional treemap of what is actually using the disk |
+| **System Data** | Breaks apart the blob macOS won't explain — the only screen that looks outside your home folder ([details](#system-data)) |
 | **Duplicates** | Byte-identical files (SHA-256), one copy kept per group |
 | **Similar photos** | Perceptual hash (dHash) finds the same photo at different sizes or compression |
 | **Apps & leftovers** | Installed apps plus the support/cache/preference files they leave in `~/Library` |
 | **Browser & mail caches** | Safari, Chrome, Firefox, Edge, Arc, Mail — caches only, never mail stores or site data |
 | **Startup items** | Login items; disabling moves the plist to quarantine so it is reversible |
 | **Quarantine** | Everything you moved, with restore and "empty to Trash" |
+| **Decision helper** | For big files that are hard to judge: where it came from, when it was last opened, whether copies exist elsewhere — clues only, no verdict |
+| **History** | Every scan, quarantine, restore and empty, with a chart of how reclaimable space moved over time |
 | **Diagnostics** | Whether protected folders are readable and quarantine/restore actually work |
+
+## System Data
+
+macOS System Settings lumps everything it can't classify into one opaque
+figure. Watching it climb past 100 GB with no way to see inside is the reason
+this project exists — and every other screen here stays inside your home
+folder, where most of that blob isn't.
+
+This screen breaks it apart: Xcode simulator runtimes, `/Library/Application
+Support`, `/private/var` swap and scratch, app containers, device symbols, iOS
+backups. On the machine it was built on that came to **96 GB, half of it
+outside the home folder** and previously invisible to the app.
+
+It is strictly read-only. Each area is graded:
+
+| Grade | Meaning |
+|---|---|
+| **Cleanable here** | Home folder, regenerable — the normal quarantine flow already covers it |
+| **Clean it yourself** | Only a dedicated tool removes it safely. The app explains what it is and shows the official command to copy. **It never runs it.** |
+| **Managed by macOS** | Swap, scratch, logs. Left alone, and explained |
+
+Nothing outside the home folder is ever quarantined: quarantine cannot undo a
+broken system, and this app's whole safety model is *reversible or not at all*.
+Every area says what it is, why it grows, and what clearing it costs — the same
+explain-don't-decide stance as the rest of the app.
+
+Sizes come from allocated blocks, and the screen states plainly that they won't
+exactly match Apple's figure, because the two classify differently.
 
 ## Requirements
 
@@ -110,6 +141,21 @@ rest still works.
 6. Background scheduled runs notify only by default. Auto-quarantine is off
    until explicitly confirmed and is limited to package-download and tool
    caches; project dependencies, build outputs, and simulator data are excluded.
+
+## Known limits
+
+This is a personal tool released in the open, and it is honest about where that
+shows:
+
+- **Apple Silicon only**, macOS 12+. There is no Intel build.
+- **Not notarized.** The first launch needs right-click → Open. The path to
+  fixing that is written up in [docs/NOTARIZATION.md](docs/NOTARIZATION.md);
+  it needs an Apple Developer account, not more code.
+- **Tested on one Mac.** Nobody has run this on hardware or a macOS version
+  other than the one it was built on. If you can spare 30 minutes,
+  [docs/TESTING_ON_ANOTHER_MAC.md](docs/TESTING_ON_ANOTHER_MAC.md) is a
+  checklist for exactly that, and the results would be the single most useful
+  thing anyone could send back.
 
 ## Development
 
