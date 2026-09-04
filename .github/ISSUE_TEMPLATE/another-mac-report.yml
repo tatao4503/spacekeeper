@@ -1,0 +1,50 @@
+name: 다른 Mac에서 돌려본 결과 / Ran it on another Mac
+description: 이 앱이 만든 사람의 Mac 밖에서 어떻게 동작하는지 알려주세요. 문제가 없었다는 보고도 똑같이 유용합니다.
+title: "[검증] "
+labels: ["another-mac"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Spacekeeper는 지금까지 **한 대의 Mac에서만** 실행됐습니다.
+        그래서 "다 잘 됐다"는 보고도 버그 리포트만큼 값집니다 — 지금 이 앱에 없는 유일한 정보라서요.
+
+        체크리스트: [docs/TESTING_ON_ANOTHER_MAC.md](../blob/main/docs/TESTING_ON_ANOTHER_MAC.md)
+
+  - type: input
+    id: mac
+    attributes:
+      label: Mac 정보
+      description: 사과 → 이 Mac에 관하여 (칩과 macOS 버전)
+      placeholder: "예) Apple M2, macOS 14.5"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: launched
+    attributes:
+      label: 앱이 열렸나요?
+      options:
+        - 열렸다
+        - 우클릭→열기 후 열렸다
+        - 아예 열리지 않았다
+    validations:
+      required: true
+
+  - type: textarea
+    id: results
+    attributes:
+      label: 체크리스트 결과
+      description: 안 되는 것만 적어주셔도 되고, "다 됐다" 한 줄도 좋습니다.
+      placeholder: |
+        예)
+        - 전부 정상
+        또는
+        - 시스템 데이터 분석이 2분 넘게 안 끝남
+        - 영어로 바꿨는데 '격리함'만 한글로 남음
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: 화면 캡처 (선택)
+      description: 문제가 있었다면 여기에 붙여넣어 주세요. 개인 파일명이 보이면 가려주셔도 됩니다.
