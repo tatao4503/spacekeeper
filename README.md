@@ -8,19 +8,14 @@ picked into a quarantine folder, and lets you put it all back.
 
 [한국어 문서](README.ko.md) · [사용설명서 (USER_GUIDE)](USER_GUIDE.html)
 
-![Spacekeeper dashboard](docs/screenshots/dashboard.png)
-
 ---
 
 ## Why another cleaner
 
 **Nothing is destroyed.** "Cleaning" moves files to `~/.spacekeeper/quarantine/`
 and records where they came from. Restore is one click. Emptying goes to the
-macOS Trash, so even that step is reversible.
-
-<img src="docs/screenshots/onboarding.png" alt="First-run explanation of the safety model" width="620">
-
-*The app says this on first launch, before it scans anything.*
+macOS Trash, so even that step is reversible. The app explains this on first
+launch, before it scans anything.
 
 **Every item explains itself.** Each candidate carries a reason ("Cargo can
 rebuild this"), a caution, and a risk level. No opaque "Junk: 12.4 GB" buckets.
