@@ -1,0 +1,16 @@
+{
+  "identifier": "dashboard-window-drag",
+  "description": "대시보드(127.0.0.1)에서 허용하는 네이티브 호출은 창 끌기와 더블클릭 확대뿐이다. 제목줄을 걷어냈기 때문에 이게 없으면 창을 옮길 수 없다.",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*"
+    ]
+  },
+  "permissions": [
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize"
+  ]
+}

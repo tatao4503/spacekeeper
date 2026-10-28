@@ -121,5 +121,39 @@ class DesktopBundleContractTests(unittest.TestCase):
         self.assertIsNotNone(TAURI_CONFIG["app"]["security"]["csp"])
 
 
+    def test_hidden_title_bar_always_comes_with_a_way_to_move_the_window(self) -> None:
+        """제목줄을 걷어냈으면 창을 끌 수 있는 띠와 그 권한이 반드시 함께 있어야 한다.
+
+        셋 중 하나만 빠져도 사용자는 창을 옮길 수 없다. 회색 제목줄이 있는 것보다 나쁘다.
+        """
+        window = TAURI_CONFIG["app"]["windows"][0]
+        if window.get("titleBarStyle") != "Overlay":
+            return
+        index_html = (ROOT / "spacekeeper" / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("data-tauri-drag-region", index_html)
+        style = (ROOT / "spacekeeper" / "web" / "style.css").read_text(encoding="utf-8")
+        self.assertIn('html[data-shell="desktop"] .titlebar-drag', style)
+
+        remote = json.loads((TAURI_DIR / "capabilities" / "dashboard-drag.json").read_text())
+        self.assertIn("core:window:allow-start-dragging", remote["permissions"])
+
+    def test_dashboard_gets_only_window_drag_permissions(self) -> None:
+        """대시보드는 원격(127.0.0.1) 페이지다. 거기에 열어주는 네이티브 권한은
+        창 끌기와 더블클릭 확대뿐이어야 한다 — 슬쩍 넓어지면 여기서 막는다."""
+        remote = json.loads((TAURI_DIR / "capabilities" / "dashboard-drag.json").read_text())
+        self.assertEqual(remote["windows"], ["main"])
+        self.assertEqual(remote["remote"]["urls"], ["http://127.0.0.1:*"])
+        self.assertEqual(
+            sorted(remote["permissions"]),
+            ["core:window:allow-internal-toggle-maximize", "core:window:allow-start-dragging"],
+        )
+
+    def test_app_menu_has_a_working_edit_menu(self) -> None:
+        """맥에서는 편집 메뉴가 있어야 입력칸에서 ⌘C·⌘V·⌘A가 동작한다."""
+        self.assertIn(".menu(build_app_menu)", MAIN_RS)
+        for item in ("PredefinedMenuItem::copy", "PredefinedMenuItem::paste", "PredefinedMenuItem::select_all"):
+            self.assertIn(item, MAIN_RS)
+        self.assertIn("PredefinedMenuItem::about", MAIN_RS)
+
 if __name__ == "__main__":
     unittest.main()

@@ -2141,6 +2141,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const shortcutModal = document.getElementById("shortcut-modal");
   document.getElementById("close-shortcut-modal")?.addEventListener("click", () => shortcutModal?.close());
 
+  // 데스크탑 앱 안에서는 웹뷰 기본 우클릭 메뉴(새로 고침 등)를 띄우지 않는다.
+  // 맥 앱에서 우클릭에 "새로 고침"이 뜨면 웹페이지라는 티가 난다.
+  // 글자를 복사할 이유가 있는 곳(입력칸·경로·명령)은 그대로 둔다.
+  // 브라우저로 개발할 때(--serve)는 요소 검사를 써야 하니 막지 않는다.
+  if (document.documentElement.dataset.shell === "desktop") {
+    const COPYABLE = "input, textarea, [contenteditable='true'], code, pre, .sd-path, .sd-cmd, .diag-path, .entry-path, .scan-current-path, .sig-path";
+    document.addEventListener("contextmenu", (e) => {
+      if (!e.target.closest?.(COPYABLE)) e.preventDefault();
+    });
+  }
+
   const navOrder = ["dashboard", "spacetree", "systemdata", "largefiles", "duplicates", "photos", "decide", "apps", "browsercache", "startup", "quarantine", "history", "schedule", "diagnostics"];
   const fromHash = location.hash.slice(1);
   if (navOrder.includes(fromHash)) switchView(fromHash);

@@ -13,7 +13,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::menu::{
+    AboutMetadata, Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder,
+};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, RunEvent, WindowEvent};
 
@@ -124,9 +126,79 @@ fn spawn_server(port: u16, api_token: &str) -> Option<Child> {
     }
 }
 
+const HOMEPAGE: &str = "https://github.com/tatao4503/spacekeeper";
+
+// 화면 맨 위 앱 메뉴. Tauri가 자동으로 붙이는 영어 기본 메뉴 대신,
+// 한국어 맥 앱과 같은 이름·순서로 둔다. 편집 메뉴는 장식이 아니다 —
+// 이게 있어야 입력칸에서 ⌘C·⌘V·⌘A가 동작한다.
+fn build_app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let about = PredefinedMenuItem::about(
+        app,
+        Some("Spacekeeper에 관하여"),
+        Some(AboutMetadata {
+            name: Some("Spacekeeper".into()),
+            version: Some(app.package_info().version.to_string()),
+            copyright: Some("© 2026 윤태웅 · MIT License".into()),
+            credits: Some("지우지 않고 격리하는 Mac 저장공간 정리 도구".into()),
+            ..Default::default()
+        }),
+    )?;
+    let app_menu = SubmenuBuilder::new(app, "Spacekeeper")
+        .item(&about)
+        .separator()
+        .item(&PredefinedMenuItem::services(app, Some("서비스"))?)
+        .separator()
+        .item(&PredefinedMenuItem::hide(app, Some("Spacekeeper 가리기"))?)
+        .item(&PredefinedMenuItem::hide_others(app, Some("기타 가리기"))?)
+        .item(&PredefinedMenuItem::show_all(app, Some("모두 보기"))?)
+        .separator()
+        .item(&PredefinedMenuItem::quit(app, Some("Spacekeeper 종료"))?)
+        .build()?;
+    let edit = SubmenuBuilder::new(app, "편집")
+        .item(&PredefinedMenuItem::undo(app, Some("실행 취소"))?)
+        .item(&PredefinedMenuItem::redo(app, Some("실행 복귀"))?)
+        .separator()
+        .item(&PredefinedMenuItem::cut(app, Some("잘라내기"))?)
+        .item(&PredefinedMenuItem::copy(app, Some("복사하기"))?)
+        .item(&PredefinedMenuItem::paste(app, Some("붙여넣기"))?)
+        .item(&PredefinedMenuItem::select_all(app, Some("전체 선택"))?)
+        .build()?;
+    let view = SubmenuBuilder::new(app, "보기")
+        .item(&PredefinedMenuItem::fullscreen(app, Some("전체 화면"))?)
+        .build()?;
+    let window = SubmenuBuilder::new(app, "윈도우")
+        .item(&PredefinedMenuItem::minimize(app, Some("최소화"))?)
+        .item(&PredefinedMenuItem::maximize(app, Some("확대/축소"))?)
+        .separator()
+        .item(&PredefinedMenuItem::close_window(app, Some("윈도우 닫기"))?)
+        .build()?;
+    let help = SubmenuBuilder::new(app, "도움말")
+        .item(&MenuItemBuilder::with_id("help_shortcuts", "키보드 단축키").build(app)?)
+        .item(&MenuItemBuilder::with_id("help_homepage", "Spacekeeper 홈페이지").build(app)?)
+        .build()?;
+    Menu::with_items(app, &[&app_menu, &edit, &view, &window, &help])
+}
+
 fn main() {
     let app = tauri::Builder::default()
         .manage(ServerProcess(Mutex::new(None)))
+        .menu(build_app_menu)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            // 대시보드에 이미 있는 단축키 안내창을 연다(? 키와 같은 창).
+            "help_shortcuts" => {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                    let _ = w.eval(
+                        "try { document.getElementById('shortcut-modal')?.showModal(); } catch (_) {}",
+                    );
+                }
+            }
+            "help_homepage" => {
+                let _ = Command::new("/usr/bin/open").arg(HOMEPAGE).spawn();
+            }
+            _ => {}
+        })
         .setup(|app| {
             let port = available_port().ok_or_else(|| {
                 std::io::Error::other("Spacekeeper 로컬 포트를 준비할 수 없습니다")

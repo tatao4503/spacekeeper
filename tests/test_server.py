@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import os
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -183,6 +184,31 @@ class ServerSafetyTests(unittest.TestCase):
 
         self.assertIn(self.api_token, body)
         self.assertNotIn(server._API_TOKEN_PLACEHOLDER, body)
+
+    def test_browser_dashboard_is_not_marked_as_desktop_shell(self) -> None:
+        """브라우저(--serve)로 열면 앱 전용 처리(우클릭 차단·제목줄 여백)가 붙지 않는다."""
+        with mock.patch.dict(server.os.environ, {}, clear=False) as env:
+            env.pop(server._DESKTOP_PARENT_ENV, None)
+            with urlopen(self.base_url + "/", timeout=2) as response:
+                body = response.read().decode("utf-8")
+                csp = response.headers["Content-Security-Policy"]
+        self.assertNotIn('data-shell="desktop"', body)
+        self.assertNotIn("ipc:", csp)
+
+    def test_desktop_dashboard_is_marked_and_only_ipc_is_added(self) -> None:
+        """데스크탑 앱 안에서는 셸 표시가 붙고, CSP는 ipc: 통로 하나만 넓어진다."""
+        with mock.patch.dict(
+            server.os.environ, {server._DESKTOP_PARENT_ENV: str(os.getpid())}
+        ):
+            with urlopen(self.base_url + "/", timeout=2) as response:
+                body = response.read().decode("utf-8")
+                csp = response.headers["Content-Security-Policy"]
+        self.assertIn('<html lang="ko" data-shell="desktop">', body)
+        self.assertIn("connect-src 'self' ipc: http://ipc.localhost;", csp)
+        # 나머지 정책은 브라우저용과 똑같아야 한다.
+        self.assertEqual(
+            csp.replace(" ipc: http://ipc.localhost", ""), server._CSP
+        )
 
     def test_api_rejects_missing_or_wrong_token(self) -> None:
         for headers in ({}, {"X-Spacekeeper-Token": "wrong-token"}):

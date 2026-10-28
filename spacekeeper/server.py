@@ -50,6 +50,9 @@ _CSP = (
     "frame-ancestors 'none'; "
     "form-action 'none'"
 )
+# 데스크탑 앱 안에서는 웹뷰가 창 끌기 같은 네이티브 호출을 ipc: 로 보낸다.
+# 그 통로만 추가로 열고, 나머지 정책은 브라우저용과 같다.
+_CSP_DESKTOP = _CSP.replace("connect-src 'self';", "connect-src 'self' ipc: http://ipc.localhost;")
 
 
 def _desktop_parent_pid() -> int | None:
@@ -555,7 +558,10 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
-        self.send_header("Content-Security-Policy", _CSP)
+        self.send_header(
+            "Content-Security-Policy",
+            _CSP_DESKTOP if _desktop_parent_pid() is not None else _CSP,
+        )
         if no_store:
             self.send_header("Cache-Control", "no-store")
 
@@ -577,6 +583,10 @@ class _Handler(BaseHTTPRequestHandler):
         if filename == "index.html":
             token = html.escape(self.api_token, quote=True).encode("ascii")
             body = body.replace(_API_TOKEN_PLACEHOLDER.encode("ascii"), token)
+            if _desktop_parent_pid() is not None:
+                body = body.replace(
+                    b'<html lang="ko">', b'<html lang="ko" data-shell="desktop">', 1
+                )
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
