@@ -155,5 +155,31 @@ class DesktopBundleContractTests(unittest.TestCase):
             self.assertIn(item, MAIN_RS)
         self.assertIn("PredefinedMenuItem::about", MAIN_RS)
 
+    def test_startup_failure_is_shown_instead_of_an_endless_spinner(self) -> None:
+        """서버가 끝내 뜨지 않으면 시작 화면이 실패를 말해야 한다.
+
+        예전에는 60초를 기다린 뒤 아무것도 하지 않아 스피너가 영원히 돌았고,
+        서버를 아예 못 띄우면 앱이 조용히 종료됐다.
+        """
+        self.assertIn("show_startup_failure(&win)", MAIN_RS)
+        self.assertIn("server_exited(&win)", MAIN_RS)  # 죽은 서버를 60초 기다리지 않는다
+        self.assertNotIn('Error::other("Spacekeeper 서버를 시작할 수 없습니다"))?', MAIN_RS)
+
+        loading = (DESKTOP / "dist" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<script src="loading.js"></script>', loading)  # CSP: 인라인 스크립트 금지
+        self.assertIn('class="failure"', loading)
+        script = (DESKTOP / "dist" / "loading.js").read_text(encoding="utf-8")
+        self.assertIn("window.__skStartupFailed", script)
+        self.assertIn("window.__skFailReason", script)  # 신호가 먼저 와도 놓치지 않는다
+
+    def test_menu_bar_icon_is_a_template_image(self) -> None:
+        """메뉴바 아이콘은 흑백 템플릿이어야 라이트/다크에 맞춰 색이 바뀐다."""
+        self.assertIn("icon_as_template(true)", MAIN_RS)
+        self.assertTrue((TAURI_DIR / "icons" / "tray-template.png").is_file())
+
+    def test_dmg_has_a_background_that_shows_what_to_do(self) -> None:
+        self.assertIn('--background "$DESKTOP_DIR/dmg-assets/background.tiff"', FINALIZE_RELEASE)
+        self.assertTrue((DESKTOP / "dmg-assets" / "background.tiff").is_file())
+
 if __name__ == "__main__":
     unittest.main()

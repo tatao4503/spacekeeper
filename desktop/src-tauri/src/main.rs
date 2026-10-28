@@ -126,6 +126,27 @@ fn spawn_server(port: u16, api_token: &str) -> Option<Child> {
     }
 }
 
+// 서버 자식 프로세스가 이미 끝났는지. 아예 못 띄웠어도 끝난 것으로 본다.
+fn server_exited<R: tauri::Runtime>(win: &tauri::WebviewWindow<R>) -> bool {
+    let state = win.state::<ServerProcess>();
+    let mut guard = state.0.lock().unwrap();
+    match guard.as_mut() {
+        Some(child) => matches!(child.try_wait(), Ok(Some(_))),
+        None => true,
+    }
+}
+
+// 시작 화면에 실패를 알린다. 화면의 스크립트(loading.js)보다 먼저 도착할 수 있어
+// 신호를 window.__skFailReason 에 남기고, 잠깐 동안 몇 번 반복해서 보낸다.
+fn show_startup_failure<R: tauri::Runtime>(win: &tauri::WebviewWindow<R>) {
+    for _ in 0..12 {
+        let _ = win.eval(
+            "window.__skFailReason = 1; window.__skStartupFailed && window.__skStartupFailed();",
+        );
+        std::thread::sleep(Duration::from_millis(250));
+    }
+}
+
 const HOMEPAGE: &str = "https://github.com/tatao4503/spacekeeper";
 
 // 화면 맨 위 앱 메뉴. Tauri가 자동으로 붙이는 영어 기본 메뉴 대신,
@@ -206,23 +227,35 @@ fn main() {
             let api_token = generate_api_token().ok_or_else(|| {
                 std::io::Error::other("Spacekeeper 앱 인증 정보를 만들 수 없습니다")
             })?;
-            let child = spawn_server(port, &api_token)
-                .ok_or_else(|| std::io::Error::other("Spacekeeper 서버를 시작할 수 없습니다"))?;
-            *app.state::<ServerProcess>().0.lock().unwrap() = Some(child);
+            let child = spawn_server(port, &api_token);
+            let spawned = child.is_some();
+            *app.state::<ServerProcess>().0.lock().unwrap() = child;
 
             // 서버가 준비되면 웹뷰를 대시보드로 이동시킨다.
             if let Some(window) = app.get_webview_window("main") {
                 let win = window.clone();
                 std::thread::spawn(move || {
-                    for _ in 0..240 {
-                        if server_is_ready(port, &api_token) {
-                            let dashboard_url = format!("http://127.0.0.1:{port}");
-                            if let Ok(url) = dashboard_url.parse() {
-                                let _ = win.navigate(url);
+                    let mut ready = false;
+                    if spawned {
+                        for _ in 0..240 {
+                            if server_is_ready(port, &api_token) {
+                                ready = true;
+                                break;
                             }
-                            break;
+                            // 서버가 이미 끝났으면 60초를 다 기다릴 이유가 없다.
+                            if server_exited(&win) {
+                                break;
+                            }
+                            std::thread::sleep(Duration::from_millis(250));
                         }
-                        std::thread::sleep(Duration::from_millis(250));
+                    }
+                    if ready {
+                        let dashboard_url = format!("http://127.0.0.1:{port}");
+                        if let Ok(url) = dashboard_url.parse() {
+                            let _ = win.navigate(url);
+                        }
+                    } else {
+                        show_startup_failure(&win);
                     }
                 });
             }
@@ -244,9 +277,11 @@ fn main() {
                     "quit" => app.exit(0),
                     _ => {}
                 });
-            if let Some(icon) = app.default_window_icon() {
-                tray = tray.icon(icon.clone());
-            }
+            // 메뉴바 아이콘은 흑백 템플릿이다. macOS가 라이트/다크·강조색에 맞춰
+            // 색을 바꾼다. 컬러 앱 아이콘을 그대로 쓰면 메뉴바에서만 튀어 보인다.
+            let tray_icon =
+                tauri::image::Image::from_bytes(include_bytes!("../icons/tray-template.png"))?;
+            tray = tray.icon(tray_icon).icon_as_template(true);
             tray.build(app)?;
             Ok(())
         })

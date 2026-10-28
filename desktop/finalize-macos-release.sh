@@ -60,6 +60,7 @@ done
 "$CREATE_DMG" \
   --volname "Spacekeeper" \
   --volicon "$DMG_DIR/icon.icns" \
+  --background "$DESKTOP_DIR/dmg-assets/background.tiff" \
   --filesystem APFS \
   --window-size 660 400 \
   --icon-size 128 \
