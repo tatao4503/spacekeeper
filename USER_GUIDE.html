@@ -59,9 +59,9 @@ table, blockquote, .callout { page-break-inside: avoid; }
 <table>
 <thead><tr><th>화면</th><th>하는 일</th></tr></thead>
 <tbody>
-<tr><td><strong>공간 요약</strong></td><td>메인 대시보드. 위치를 정해 분석하고, 되찾을 수 있는 용량·위험도 분포·정리 후보 목록을 본다. 도넛은 남은 공간, 큰 숫자는 정리 후보 용량.</td></tr>
+<tr><td><strong>공간 요약</strong></td><td>메인 대시보드. 위치를 정해 분석하고, 되찾을 수 있는 용량·위험도 분포·정리 후보 목록을 본다. 도넛은 남은 공간, 큰 숫자는 정리 후보 용량. 자주 보는 폴더는 위치 옆 ★로 즐겨찾기해 한 번에 다시 분석한다.</td></tr>
 <tr><td><strong>디스크 지도</strong></td><td>어떤 폴더가 공간을 많이 쓰는지 크기 블록(트리맵)으로 한눈에. 블록을 눌러 안으로 들어간다.</td></tr>
-<tr><td><strong>시스템 데이터</strong></td><td>macOS 저장공간이 '시스템 데이터'로 뭉뚱그린 덩어리를 실제 폴더로 분해한다. <strong>이 화면만 홈 폴더 밖까지</strong> 살펴본다(시뮬레이터, /Library, /private/var). 읽기 전용 — 여기서는 아무것도 옮기거나 지우지 않는다.</td></tr>
+<tr><td><strong>시스템 데이터</strong></td><td>macOS 저장공간이 '시스템 데이터'로 뭉뚱그린 덩어리를 실제 폴더로 분해한다. <code>/Library/Developer</code>·<code>/private/var</code> 같은 <strong>시스템 위치까지 재는 유일한 화면</strong>이다(시뮬레이터 런타임, 스왑 등). 읽기 전용 — 여기서는 아무것도 옮기거나 지우지 않는다.</td></tr>
 </tbody>
 </table>
 
@@ -114,7 +114,7 @@ table, blockquote, .callout { page-break-inside: avoid; }
 <h2 id="sysdata">🧩 '시스템 데이터'가 수십 기가인 이유</h2>
 <p>macOS 저장공간 설정은 분류하기 애매한 것을 전부 <strong>'시스템 데이터'</strong> 하나로 뭉쳐서 보여준다. 그래서 갑자기 100GB가 넘어도 그게 뭔지 알 방법이 없다. <code>시스템 데이터</code> 화면이 그 덩어리를 실제 폴더로 분해한다.</p>
 <div class="callout">
-<p><strong>이 화면만 홈 폴더 밖까지 본다.</strong> 다른 화면은 안전을 위해 홈 폴더 안만 다루지만, 그 덩어리의 상당 부분은 <code>/Library/Developer</code>(Xcode 시뮬레이터), <code>/private/var</code>(스왑·임시) 처럼 홈 밖에 있다. 개발자 Mac에서는 시뮬레이터 런타임만 수십 GB인 경우가 흔하다.</p>
+<p><strong>이 화면만 시스템 위치까지 잰다.</strong> 정리 화면들은 홈 폴더와 <code>/Applications</code>까지만 다루지만, 그 덩어리의 상당 부분은 <code>/Library/Developer</code>(Xcode 시뮬레이터), <code>/private/var</code>(스왑·임시) 처럼 홈 밖에 있다. 개발자 Mac에서는 시뮬레이터 런타임만 수십 GB인 경우가 흔하다.</p>
 </div>
 <h3>세 가지 처리 등급</h3>
 <table>
@@ -172,7 +172,7 @@ table, blockquote, .callout { page-break-inside: avoid; }
 <thead><tr><th>증상</th><th>이유 / 해결</th></tr></thead>
 <tbody>
 <tr><td>보호 폴더가 비어 보이거나 분석이 막힘</td><td>전체 디스크 접근 권한 미허용. 위 안내대로 허용 후 재실행.</td></tr>
-<tr><td>격리했는데 "시스템 데이터"가 그대로거나 커 보임</td><td>macOS 저장공간 UI의 재계산 지연이다. 실제 여유는 터미널 <code>df -h</code>로 확인. 격리는 휴지통을 비워야 실여유로 반영된다.</td></tr>
+<tr><td>격리했는데 "시스템 데이터"가 그대로거나 커 보임</td><td>macOS 저장공간 UI의 재계산 지연이다. 실제 여유는 터미널 <code>df -h</code>로 확인. 격리는 휴지통을 비워야 실여유로 반영된다. 덩어리의 정체가 궁금하면 <code>시스템 데이터</code> 화면에서 실제 폴더로 분해해 볼 수 있다.</td></tr>
 <tr><td>클라우드 폴더 분석이 느리거나 멈춘 듯함</td><td>iCloud/Google Drive 등은 자리표시자를 실제로 받아오려다 느려질 수 있다. Spacekeeper는 클라우드 컨테이너를 건너뛰지만, 제외 경로에 직접 추가해도 된다.</td></tr>
 <tr><td>실수로 잘못 격리함</td><td>격리함 → 해당 항목 <strong>복원</strong>. 원래 경로로 정확히 되돌아간다.</td></tr>
 </tbody>

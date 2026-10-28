@@ -36,7 +36,7 @@
 >
 > - **삭제 대신 격리** — `~/.spacekeeper/quarantine/`로 옮기고 원래 위치를 기록. 복원은 한 번의 클릭.
 > - **항목마다 이유** — "Cargo가 다시 만들 수 있음" 같은 근거·주의·위험도가 붙습니다. "정크 12.4GB" 같은 불투명한 덩어리가 없습니다.
-> - **시스템 데이터 해부** — macOS가 안 알려주는 그 덩어리를 실제 폴더로 분해합니다. 이 화면만 홈 폴더 밖까지 보고, 읽기 전용입니다. 시뮬레이터 런타임처럼 앱이 안전하게 못 지우는 건 **공식 명령을 보여주기만 하고 실행하지 않습니다.**
+> - **시스템 데이터 해부** — macOS가 안 알려주는 그 덩어리를 실제 폴더로 분해합니다. `/Library`나 `/private/var` 같은 시스템 위치까지 재는 유일한 화면이고, 읽기 전용입니다. 시뮬레이터 런타임처럼 앱이 안전하게 못 지우는 건 **공식 명령을 보여주기만 하고 실행하지 않습니다.**
 > - **정직한 숫자** — 논리 크기가 아니라 실제 할당 블록(`st_blocks`) 기준. APFS 복제 때문에 실제 확보량이 더 적을 수 있다는 것도 화면에서 먼저 밝힙니다.
 > - **완전 로컬** — 네트워크·계정·텔레메트리 없음. 대시보드는 루프백에서만 받고 실행마다 새 토큰으로 인증합니다.
 >
@@ -61,8 +61,8 @@
 >   Trash, so even that is reversible.
 > - **Every item explains itself** — a reason, a caution, a risk level. No opaque
 >   "Junk: 12.4 GB" bucket.
-> - **System Data breakdown** — the only screen that looks outside your home folder,
->   and it's strictly read-only. Things it can't remove safely (simulator runtimes,
+> - **System Data breakdown** — the only screen that measures system locations like
+>   `/Library/Developer` and `/private/var`, and it's strictly read-only. Things it can't remove safely (simulator runtimes,
 >   `/private/var`) are *explained with the official command to copy* — it never
 >   runs them. Quarantine can't undo a broken system, so it doesn't pretend to.
 > - **Honest numbers** — allocated blocks, not logical size, and the UI says up

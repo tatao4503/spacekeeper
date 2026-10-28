@@ -43,15 +43,17 @@ library only — no third-party runtime dependencies.
 
 | | |
 |---|---|
-| **Overview** | Large files, old downloads, regenerable caches, build artifacts — grouped by category with a size bar per group |
+| **Overview** | Large files, old downloads, regenerable caches, build artifacts — grouped by category with a size bar per group. Star a folder to re-scan it in one click |
 | **Space tree** | Proportional treemap of what is actually using the disk |
-| **System Data** | Breaks apart the blob macOS won't explain — the only screen that looks outside your home folder ([details](#system-data)) |
+| **Large files** | Files above a size you pick (10 MB – 1 GB), grouped by kind, with where each came from and when it was last used |
+| **System Data** | Breaks apart the blob macOS won't explain — the only screen that measures system locations like `/Library/Developer` and `/private/var` ([details](#system-data)) |
 | **Duplicates** | Byte-identical files (SHA-256), one copy kept per group |
 | **Similar photos** | Perceptual hash (dHash) finds the same photo at different sizes or compression |
 | **Apps & leftovers** | Installed apps plus the support/cache/preference files they leave in `~/Library` |
 | **Browser & mail caches** | Safari, Chrome, Firefox, Edge, Arc, Mail — caches only, never mail stores or site data |
 | **Startup items** | Login items; disabling moves the plist to quarantine so it is reversible |
 | **Quarantine** | Everything you moved, with restore and "empty to Trash" |
+| **Auto-cleanup** | Off by default. When you turn it on and confirm, a background agent quarantines only an allowlist of rebuildable package/tool caches on a schedule |
 | **Decision helper** | For big files that are hard to judge: where it came from, when it was last opened, whether copies exist elsewhere — clues only, no verdict |
 | **History** | Every scan, quarantine, restore and empty, with a chart of how reclaimable space moved over time |
 | **Diagnostics** | Whether protected folders are readable and quarantine/restore actually work |
@@ -60,8 +62,8 @@ library only — no third-party runtime dependencies.
 
 macOS System Settings lumps everything it can't classify into one opaque
 figure. Watching it climb past 100 GB with no way to see inside is the reason
-this project exists — and every other screen here stays inside your home
-folder, where most of that blob isn't.
+this project exists — and most of that blob lives in system locations the
+cleaning screens never measure.
 
 This screen breaks it apart: Xcode simulator runtimes, `/Library/Application
 Support`, `/private/var` swap and scratch, app containers, device symbols, iOS
@@ -76,8 +78,9 @@ It is strictly read-only. Each area is graded:
 | **Clean it yourself** | Only a dedicated tool removes it safely. The app explains what it is and shows the official command to copy. **It never runs it.** |
 | **Managed by macOS** | Swap, scratch, logs. Left alone, and explained |
 
-Nothing outside the home folder is ever quarantined: quarantine cannot undo a
-broken system, and this app's whole safety model is *reversible or not at all*.
+Nothing this screen finds outside your home folder is ever quarantined:
+quarantine cannot undo a broken system, and this app's whole safety model is
+*reversible or not at all*.
 Every area says what it is, why it grows, and what clearing it costs — the same
 explain-don't-decide stance as the rest of the app.
 

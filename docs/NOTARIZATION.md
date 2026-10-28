@@ -44,61 +44,65 @@
 
 ### 3단계 — 앱 암호 (사용자가 직접, ~5분)
 
-1. https://appleid.apple.com → 로그인 → `앱 암호` → 새로 생성 (이름: `notarytool`)
-2. 키체인에 저장 (이렇게 하면 비밀번호가 스크립트에 노출되지 않습니다):
-   ```bash
-   xcrun notarytool store-credentials "spacekeeper-notary" \
-     --apple-id "본인_애플_아이디" \
-     --team-id "팀ID" \
-     --password "생성한_앱_암호"
-   ```
+https://appleid.apple.com → 로그인 → `앱 암호` → 새로 생성 (이름: `notarytool`)
 
-### 4단계 — 빌드 설정 변경 (여기서부터는 대신 해줄 수 있음)
+### 4단계 — 서명·공증·스테이플: `desktop/notarize.sh`
 
-`desktop/src-tauri/tauri.conf.json` 의 서명 설정을 바꿉니다.
+이 과정은 **이미 스크립트로 있습니다.** DMG에서 앱을 꺼내 Developer ID로 서명하고
+(`--options runtime` = hardened runtime), DMG를 다시 만들어 공증을 받고, 티켓을
+스테이플합니다.
 
-```json
-"macOS": {
-  "signingIdentity": "Developer ID Application: 이름 (팀ID)",
-  "minimumSystemVersion": "12.0",
-  "entitlements": "entitlements.plist"
-}
-```
-
-`hardenedRuntime`이 필요하고, 이 앱은 자체 포함 파이썬 런타임(sidecar)을 실행하므로
-다음 entitlement가 필요할 가능성이 높습니다.
-
-```xml
-<key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
-<key>com.apple.security.cs.disable-library-validation</key><true/>
-```
-
-> ⚠️ PyInstaller로 만든 sidecar는 공증에서 가장 자주 막히는 지점입니다.
-> `.app` 안의 **모든** 실행 파일과 `.dylib`가 각각 서명돼야 합니다.
-> 첫 시도에서 실패하는 게 정상이고, 아래 로그 확인이 핵심입니다.
-
-### 5단계 — 서명·공증·스테이플 (대신 해줄 수 있음)
+스크립트는 네 개의 환경변수를 요구합니다. **파일에 적거나 커밋하지 말고** 실행하는
+터미널에서만 설정합니다.
 
 ```bash
-# 1) 빌드
-cd desktop && npm run build
+export APPLE_DEV_ID="Developer ID Application: 이름 (팀ID)"   # 2단계에서 확인한 문자열
+export APPLE_TEAM_ID="팀ID"                                    # 10자리
+export APPLE_ID="본인_애플_아이디"
+export APPLE_APP_PASSWORD="3단계에서_만든_앱_암호"
 
-# 2) DMG 공증 제출 (5~15분 소요)
-xcrun notarytool submit \
-  src-tauri/target/release/bundle/dmg/Spacekeeper_0.2.0_aarch64.dmg \
-  --keychain-profile "spacekeeper-notary" --wait
-
-# 3) 실패하면 이유 확인 (여기가 제일 중요)
-xcrun notarytool log <제출ID> --keychain-profile "spacekeeper-notary"
-
-# 4) 성공하면 티켓을 DMG에 박아 넣기 (오프라인에서도 통과)
-xcrun stapler staple src-tauri/target/release/bundle/dmg/Spacekeeper_0.2.0_aarch64.dmg
-
-# 5) 최종 확인 — 받는 사람 입장에서 통과하는지
-spctl -a -vvv -t install src-tauri/target/release/bundle/dmg/Spacekeeper_0.2.0_aarch64.dmg
+cd desktop
+npm run build        # 먼저 일반 DMG를 만든다
+./notarize.sh        # 최신 DMG를 찾아 서명·공증·스테이플 (5~15분)
 ```
 
-`spctl` 결과가 `accepted` + `source=Notarized Developer ID` 면 끝입니다.
+끝나면 받는 사람 입장에서 통과하는지 확인합니다.
+
+```bash
+spctl -a -vvv -t install src-tauri/target/release/bundle/dmg/Spacekeeper_<버전>_aarch64.dmg
+```
+
+`accepted` + `source=Notarized Developer ID` 면 끝입니다.
+
+### 5단계 — 실패했을 때
+
+첫 시도에서 실패하는 게 정상입니다. 이유는 공증 로그에 나옵니다.
+
+```bash
+xcrun notarytool history --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+xcrun notarytool log <제출ID> --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+```
+
+> ⚠️ **가장 가능성 높은 원인: PyInstaller sidecar.**
+> 이 앱은 자체 포함 파이썬 런타임을 실행하는데, 지금 `notarize.sh`는 서명할 때
+> **entitlements를 넘기지 않습니다.** hardened runtime 아래에서 파이썬 런타임이
+> 막히면 다음 entitlement가 필요할 가능성이 높습니다.
+>
+> ```xml
+> <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+> <key>com.apple.security.cs.disable-library-validation</key><true/>
+> ```
+>
+> 이걸 `desktop/entitlements.plist`로 만들고, `notarize.sh`의 `codesign` 줄에
+> `--entitlements entitlements.plist`를 더합니다. `--deep` 서명이 sidecar 안의
+> `.dylib`까지 빠짐없이 잡는지도 로그에서 확인합니다.
+
+### 알아둘 것 — 스크립트가 DMG를 바꾸는 방식
+
+`notarize.sh`는 서명한 앱만 넣어 **DMG를 새로 만들고, 원래 DMG를 덮어씁니다.**
+그래서 지금 배포 DMG에 있는 `/Applications` 드래그 바로가기와 볼륨 아이콘이 빠집니다.
+공증된 DMG에도 그게 필요하면, 덮어쓰기 전에 원본을 따로 보관하거나 스크립트의
+`hdiutil create` 단계를 `finalize-macos-release.sh` 방식으로 바꿔야 합니다.
 
 ### 6단계 — 릴리스 교체
 
