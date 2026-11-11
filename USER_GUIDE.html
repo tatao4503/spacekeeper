@@ -116,6 +116,12 @@ table, blockquote, .callout { page-break-inside: avoid; }
 <div class="callout">
 <p><strong>이 화면만 시스템 위치까지 잰다.</strong> 정리 화면들은 홈 폴더와 <code>/Applications</code>까지만 다루지만, 그 덩어리의 상당 부분은 <code>/Library/Developer</code>(Xcode 시뮬레이터), <code>/private/var</code>(스왑·임시) 처럼 홈 밖에 있다. 개발자 Mac에서는 시뮬레이터 런타임만 수십 GB인 경우가 흔하다.</p>
 </div>
+<h3>못 읽은 곳·확인 못 한 공간·늘어난 곳</h3>
+<ul>
+<li><strong>일부만 측정</strong>: macOS 개인정보 보호 때문에 열지 못한 폴더가 있으면, 그 영역에 "일부만 측정" 표시가 붙고 크기 뒤에 "이상"이 붙는다. 못 읽은 부분을 0으로 치고 넘어가지 않는다. <strong>시스템 설정 → 개인정보 보호 및 보안 → 전체 디스크 접근 권한</strong>에서 Spacekeeper를 켜면 대부분 다 잴 수 있다.</li>
+<li><strong>디스크 전체 맞춰보기</strong>: 목록 아래 버튼. 데이터 볼륨 전체를 30초쯤 훑어서 <em>디스크가 쓰는 양 = 확인한 공간 + 확인 못 한 공간</em>으로 보여 준다. 폴더로는 보이지 않는 다른 볼륨(macOS 시스템, Preboot, 복구, 가상 메모리, 업데이트)도 따로 나온다. 외장 드라이브는 세지 않는다.</li>
+<li><strong>지난 분석 이후</strong>: 분석할 때마다 영역별 크기를 이 Mac 안에만 기록해 두고, 다음 분석 때 디스크 여유가 얼마나 바뀌었는지, 어디가 가장 많이 늘었는지 보여 준다. 지난번과 다른 조건으로 잰 영역(예: 그사이 권한을 켬)은 비교하지 않는다. 더 많이 본 것을 늘어난 것으로 착각하지 않도록.</li>
+</ul>
 <h3>세 가지 처리 등급</h3>
 <table>
 <thead><tr><th>배지</th><th>뜻</th><th>어떻게</th></tr></thead>

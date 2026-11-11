@@ -82,6 +82,22 @@ explain-don't-decide stance as the rest of the app.
 Sizes come from allocated blocks, and the screen states plainly that they won't
 exactly match Apple's figure, because the two classify differently.
 
+It also says what it **couldn't** see. Folders blocked by macOS privacy
+protection are counted, the area is marked *partly measured*, and sizes get
+"or more" — instead of quietly reporting the readable part as the whole.
+
+Two tools sit under the list:
+
+- **Reconcile the whole disk** walks the data volume and shows *volume usage =
+  accounted for + not accounted for*, with the other volumes on the same disk
+  (macOS, Preboot, Recovery, VM, Update) that no folder walk can see.
+- **What grew since last time.** Each analysis is remembered locally, and the
+  next one shows the change in free space and the areas that grew the most.
+
+All of this was added after the screen failed on a real full disk: it found
+30.9 GB of the 100+ GB macOS reported. The same disk now shows 87 GB or more,
+with the remainder explained rather than missing.
+
 ## Requirements
 
 - macOS 12 or later (Apple Silicon)
