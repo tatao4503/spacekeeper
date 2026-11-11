@@ -20,7 +20,7 @@ Spacekeeper는 지금까지 **만든 사람의 Mac 한 대에서만** 실행됐�
 ## 1. 설치
 
 1. https://github.com/tatao4503/spacekeeper/releases/latest 에서
-   `Spacekeeper_0.2.0_aarch64.dmg` 다운로드
+   `Spacekeeper_<버전>_aarch64.dmg` 다운로드 (가장 위에 있는 최신 버전)
 2. DMG를 열고 `Spacekeeper`를 `Applications`로 드래그
 3. **처음 열 때는 반드시** — 응용 프로그램 폴더에서 아이콘을 **우클릭 → 열기** →
    경고창에서 다시 **열기**
