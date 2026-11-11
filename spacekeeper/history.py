@@ -82,6 +82,32 @@ def record_operation(
     )
 
 
+def record_systemdata(result: dict, now: float | None = None) -> None:
+    """시스템 데이터 분석 결과를 영역별로 기록한다. 다음 분석이 '무엇이 늘었나'를 답하는 데 쓴다."""
+    disk = result.get("disk") or {}
+    _append(
+        {
+            "ts": now if now is not None else time.time(),
+            "type": "systemdata",
+            "total": int(result.get("total_bytes", 0) or 0),
+            "lower_bound": bool(result.get("total_is_lower_bound")),
+            "disk_free": int(disk.get("free", 0) or 0),
+            "areas": {
+                item["key"]: [int(item.get("size", 0) or 0), bool(item.get("complete", True))]
+                for item in result.get("items", [])
+            },
+        }
+    )
+
+
+def last_systemdata() -> dict | None:
+    """가장 최근의 시스템 데이터 분석 기록. 없으면 None."""
+    for record in reversed(load_history(_MAX_RECORDS)):
+        if record.get("type") == "systemdata":
+            return record
+    return None
+
+
 def load_history(limit: int = 200) -> list[dict]:
     """최근 기록을 오래된 순으로 반환한다(그리기 편하게)."""
     try:

@@ -1414,6 +1414,12 @@ const SD_ACTION = {
   system: { label: "macOS가 관리", cls: "high" },
 };
 
+// 증감: 늘면 +, 줄면 −. 시스템 데이터에서는 '늘었다'가 나쁜 쪽이다.
+const SD_DELTA_MIN = 100 * 1024 * 1024;   // 이보다 작은 변화는 잡음으로 본다
+function fmtDelta(bytes) {
+  return `${bytes > 0 ? "+" : "−"}${fmtBytes(Math.abs(bytes))}`;
+}
+
 async function loadSystemData() {
   const list = document.getElementById("sd-list");
   const summary = document.getElementById("sd-summary");
@@ -1430,6 +1436,28 @@ async function loadSystemData() {
   } finally {
     if (button) button.disabled = false;
   }
+}
+
+function renderSystemDataChange(data) {
+  const prev = data.previous;
+  if (!prev) return "";
+  const deltas = prev.areas || {};
+  const names = Object.fromEntries((data.items || []).map((i) => [i.key, i.name]));
+  const grown = Object.entries(deltas)
+    .filter(([, d]) => d >= SD_DELTA_MIN)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  const free = prev.disk_free_delta || 0;
+  const freeCls = Math.abs(free) < SD_DELTA_MIN ? "" : free < 0 ? "is-worse" : "is-better";
+  return `
+    <div class="sd-change">
+      <div class="sd-change-head"><span>지난 분석 이후</span><span class="sd-change-when">${historyTimeLabel(prev.at || 0)}</span></div>
+      <div class="sd-change-row"><span>디스크 여유</span><b class="${freeCls}">${Math.abs(free) < SD_DELTA_MIN ? "거의 그대로" : fmtDelta(free)}</b></div>
+      ${grown.length
+        ? `<div class="sd-change-row sd-change-top"><span>가장 많이 늘어난 곳</span>
+             <ol>${grown.map(([k, d]) => `<li><span>${escapeHtml(names[k] || k)}</span><b class="is-worse">${fmtDelta(d)}</b></li>`).join("")}</ol></div>`
+        : `<p class="sd-change-none">눈에 띄게 늘어난 곳은 없습니다.</p>`}
+    </div>`;
 }
 
 function renderSystemData(data) {
@@ -1450,6 +1478,7 @@ function renderSystemData(data) {
         <span>디스크 여유 <b>${fmtBytes(data.disk?.free || 0)}</b></span>
       </div>
     </div>
+    ${renderSystemDataChange(data)}
     ${data.total_is_lower_bound ? `<p class="sd-partial-note">권한이 없어 ${data.incomplete_count}개 영역은 일부만 쟀습니다. 실제 합계는 이보다 큽니다. 시스템 설정 → 개인정보 보호 및 보안 → 전체 디스크 접근 권한에서 Spacekeeper를 켜면 전부 잴 수 있습니다.</p>` : ""}
     <p class="sd-note">측정은 실제 할당 블록 기준입니다. macOS 저장공간 설정이 보여주는 '시스템 데이터' 숫자와는 분류 기준이 달라 정확히 일치하지 않을 수 있습니다.</p>`;
 
@@ -1481,6 +1510,12 @@ function renderSystemData(data) {
             ? "측정 못 함"
             : fmtBytes(item.size) + (item.complete === false ? '<span class="sd-lower">이상</span>' : "")
         }</span>
+        ${(() => {
+          const d = data.previous?.areas?.[item.key];
+          return d != null && Math.abs(d) >= SD_DELTA_MIN
+            ? `<span class="sd-delta ${d > 0 ? "is-worse" : "is-better"}">${fmtDelta(d)}</span>`
+            : "";
+        })()}
         <span class="badge ${meta.cls}">${meta.label}</span>
         <span class="lf-caret" aria-hidden="true">›</span>
       </button>
@@ -1944,6 +1979,7 @@ const HISTORY_META = {
   quarantine: { icon: "📦", cls: "quarantine", label: "격리" },
   restore: { icon: "↩︎", cls: "restore", label: "복원" },
   empty: { icon: "🗑️", cls: "empty", label: "휴지통으로" },
+  systemdata: { icon: "🧩", cls: "scan", label: "시스템 데이터 측정" },
 };
 
 function renderHistory(records) {
@@ -1969,6 +2005,11 @@ function renderHistory(records) {
       detail = isEn()
         ? `${fmtBytes(r.reclaimable_bytes || 0)} reclaimable · ${(r.scanned_files || 0).toLocaleString()} files`
         : `정리 후보 ${fmtBytes(r.reclaimable_bytes || 0)} · 파일 ${(r.scanned_files || 0).toLocaleString()}개`;
+    } else if (r.type === "systemdata") {
+      const more = r.lower_bound ? (isEn() ? " or more" : " 이상") : "";
+      detail = isEn()
+        ? `System Data ${fmtBytes(r.total || 0)}${more} · ${fmtBytes(r.disk_free || 0)} free`
+        : `시스템 데이터 ${fmtBytes(r.total || 0)}${more} · 여유 ${fmtBytes(r.disk_free || 0)}`;
     } else {
       detail = isEn()
         ? `${r.count || 0} items · ${fmtBytes(r.bytes || 0)}`

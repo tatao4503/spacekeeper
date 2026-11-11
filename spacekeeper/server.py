@@ -705,7 +705,10 @@ class _Handler(BaseHTTPRequestHandler):
             )
         elif route.path == "/api/system-data":
             try:
-                self._send_json(systemdata.analyze())
+                result = systemdata.analyze()
+                result["previous"] = systemdata.compare(result, history.last_systemdata())
+                history.record_systemdata(result)
+                self._send_json(result)
             except OSError as exc:
                 self._send_json(
                     {"error": f"시스템 데이터를 분석하지 못했습니다: {exc}"},

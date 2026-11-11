@@ -244,6 +244,30 @@ class AnalyzeTests(unittest.TestCase):
 
 
 
+class CompareTests(unittest.TestCase):
+    def test_no_previous_means_no_comparison(self) -> None:
+        self.assertIsNone(systemdata.compare({"items": []}, None))
+
+    def test_only_areas_measured_the_same_way_are_compared(self) -> None:
+        """지난번엔 일부만 쟀는데 이번엔 다 쟀다면 그 차이는 늘어난 게 아니다."""
+        result = {
+            "disk": {"free": 400},
+            "items": [
+                {"key": "grew", "size": 900, "complete": True},
+                {"key": "now_full", "size": 5000, "complete": True},
+                {"key": "new", "size": 70, "complete": True},
+            ],
+        }
+        previous = {
+            "ts": 5, "disk_free": 1000,
+            "areas": {"grew": [100, True], "now_full": [10, False]},
+        }
+        c = systemdata.compare(result, previous)
+        self.assertEqual(c["at"], 5)
+        self.assertEqual(c["disk_free_delta"], -600)
+        self.assertEqual(c["areas"], {"grew": 800})   # 조건이 달라진 것·새로 생긴 것은 비교하지 않는다
+
+
 class DiskAccountingTests(unittest.TestCase):
     def _volumes(self, data_used: int) -> tuple[list[dict], dict]:
         return (

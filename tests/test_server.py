@@ -219,6 +219,23 @@ class ServerSafetyTests(unittest.TestCase):
         self.assertEqual(payload, fake)
         self.assertEqual(denied_status, 403)
 
+    def test_system_data_compares_with_the_previous_analysis(self) -> None:
+        import tempfile
+        from pathlib import Path as _Path
+
+        first = {"total_bytes": 100, "disk": {"free": 900},
+                 "items": [{"key": "codex", "size": 100, "complete": True}]}
+        second = {"total_bytes": 400, "disk": {"free": 600},
+                  "items": [{"key": "codex", "size": 400, "complete": True}]}
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(server.history, "HISTORY_PATH", _Path(tmp) / "history.jsonl"), \
+             mock.patch.object(server.systemdata, "analyze", side_effect=[first, second]):
+            _, a = self._get("/api/system-data")
+            _, b = self._get("/api/system-data")
+        self.assertIsNone(a["previous"])                       # 처음엔 비교할 게 없다
+        self.assertEqual(b["previous"]["areas"], {"codex": 300})
+        self.assertEqual(b["previous"]["disk_free_delta"], -300)
+
     def test_api_rejects_missing_or_wrong_token(self) -> None:
         for headers in ({}, {"X-Spacekeeper-Token": "wrong-token"}):
             request = Request(

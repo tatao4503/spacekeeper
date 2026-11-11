@@ -70,6 +70,11 @@ const EN = {
   "시스템 로그": "System logs",
   "iPhone·iPad 백업": "iPhone / iPad backups",
   // 디스크 전체 맞춰보기
+  "지난 분석 이후": "Since the last analysis",
+  "거의 그대로": "About the same",
+  "가장 많이 늘어난 곳": "Grew the most",
+  "눈에 띄게 늘어난 곳은 없습니다.": "Nothing grew noticeably.",
+  "시스템 데이터 측정": "System Data measured",
   "디스크 전체 맞춰보기": "Reconcile the whole disk",
   "디스크가 실제로 쓰는 양과 Spacekeeper가 확인한 양을 나란히 놓습니다. 위 목록에 안 잡히는 공간이 얼마인지, 어디에 있는지 알 수 있습니다. 30초쯤 걸립니다.":
     "Puts what the disk actually uses next to what Spacekeeper could account for, so you can see how much space the list above misses and where it is. Takes about 30 seconds.",

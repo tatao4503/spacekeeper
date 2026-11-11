@@ -37,6 +37,20 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(records[1]["count"], 3)
         self.assertEqual(records[1]["bytes"], 900)
 
+    def test_systemdata_is_recorded_per_area_and_found_again(self) -> None:
+        self.assertIsNone(history.last_systemdata())
+        result = {
+            "total_bytes": 300, "total_is_lower_bound": True, "disk": {"free": 1000},
+            "items": [{"key": "a", "size": 200, "complete": True},
+                      {"key": "b", "size": 100, "complete": False}],
+        }
+        history.record_systemdata(result, now=10)
+        history.record_scan({"roots": ["/x"]}, now=11)        # 다른 종류가 뒤에 와도
+        last = history.last_systemdata()
+        self.assertEqual(last["ts"], 10)
+        self.assertEqual(last["areas"], {"a": [200, True], "b": [100, False]})
+        self.assertTrue(last["lower_bound"])
+
     def test_trims_to_cap(self) -> None:
         with mock.patch.object(history, "_MAX_RECORDS", 5):
             for i in range(12):

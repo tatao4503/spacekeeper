@@ -548,6 +548,29 @@ def analyze() -> dict:
     }
 
 
+
+def compare(result: dict, previous: dict | None) -> dict | None:
+    """지난 분석과 비교한다. 무엇이 늘었는지 답하려고.
+
+    같은 조건으로 잰 영역끼리만 비교한다. 지난번엔 권한이 없어 일부만 쟀는데
+    이번엔 다 쟀다면, 그 차이는 늘어난 게 아니라 더 많이 본 것이다.
+    """
+    if not previous:
+        return None
+    before = previous.get("areas") or {}
+    deltas = {}
+    for item in result.get("items", []):
+        old = before.get(item["key"])
+        if not old or bool(old[1]) != bool(item.get("complete", True)):
+            continue
+        deltas[item["key"]] = int(item["size"]) - int(old[0])
+    disk = result.get("disk") or {}
+    return {
+        "at": previous.get("ts"),
+        "disk_free_delta": int(disk.get("free", 0) or 0) - int(previous.get("disk_free", 0) or 0),
+        "areas": deltas,
+    }
+
 # ── 디스크 전체 맞춰보기 ────────────────────────────────────────────────
 # 위 영역 목록은 '알려진 곳'만 잰다. 그러면 목록 밖에 있는 공간이 얼마인지는
 # 알 수 없다. 여기서는 디스크가 실제로 쓰는 양과, 폴더를 전부 훑어서 확인한 양을
