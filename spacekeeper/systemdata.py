@@ -214,7 +214,209 @@ AREAS: tuple[SystemArea, ...] = (
         command="open ~/Library/Application\\ Support/MobileSync/Backup",
         hint="기기를 복구할 때 필요한 실제 백업입니다. 지우기 전에 다른 백업(iCloud 등)이 있는지 꼭 확인하세요. Finder → 기기 → 백업 관리에서 지우는 게 안전합니다.",
     ),
+    # ── 홈의 숨김 개발 폴더 ─────────────────────────────────────────────
+    # macOS는 이런 폴더를 '시스템 데이터'로 세는 경우가 많다. 실제로 꽉 찬 맥에서
+    # 이 폴더들만 20GB였는데, 예전 목록에는 하나도 없었다.
+    SystemArea(
+        key="dot_local",
+        name="개발 도구 데이터 (.local)",
+        path="~/.local",
+        what="여러 개발 도구가 설치본·데이터(share)와 실행 상태(state)를 두는 곳입니다. Claude Code 설치본이나 VM 샌드박스 이미지가 여기 쌓이기도 합니다.",
+        why="도구를 업데이트하면 옛 설치본이, 가상머신을 쓰면 디스크 이미지와 상태가 남습니다.",
+        action="command",
+        risk="medium",
+        command="du -sh ~/.local/share/* ~/.local/state/* 2>/dev/null | sort -rh | head -15",
+        hint="어느 도구가 큰지 확인한 뒤 그 도구의 정리 기능을 쓰세요. 폴더째 지우면 도구가 설치본과 설정을 잃습니다.",
+    ),
+    SystemArea(
+        key="codex_home",
+        name="Codex 대화 기록·플러그인 (.codex)",
+        path="~/.codex",
+        what="Codex CLI·앱이 저장한 대화 기록(sessions, archived_sessions)과 플러그인입니다.",
+        why="대화할 때마다 기록이 쌓이고, 보관한 대화도 지우기 전까지 남습니다.",
+        action="command",
+        risk="high",
+        command="du -sh ~/.codex/* | sort -rh",
+        hint="archived_sessions는 보관해 둔 지난 대화입니다. 지우면 그 대화를 다시 열 수 없습니다. 설정 파일(config.toml 등)은 남겨 두세요.",
+    ),
+    SystemArea(
+        key="claude_home",
+        name="Claude Code 기록 (.claude)",
+        path="~/.claude",
+        what="Claude Code의 프로젝트별 대화 기록과 기억(memory), 설정입니다.",
+        why="대화할 때마다 기록이 쌓입니다.",
+        action="command",
+        risk="high",
+        command="du -sh ~/.claude/projects/* | sort -rh | head",
+        hint="기억과 설정이 같은 폴더에 들어 있어서, 통째로 지우면 Claude Code가 지금까지 기억한 것을 잃습니다. 줄이려면 projects 안의 오래된 대화 기록(.jsonl)만 고르세요.",
+    ),
+    SystemArea(
+        key="android_avd",
+        name="안드로이드 에뮬레이터 기기 (AVD)",
+        path="~/.android/avd",
+        what="안드로이드 에뮬레이터로 만든 가상 기기와 그 안의 데이터입니다.",
+        why="가상 기기를 만들 때마다 디스크 이미지가 생기고, 지우기 전까지 남습니다.",
+        action="command",
+        risk="medium",
+        command="ls ~/.android/avd",
+        hint="Android Studio의 Device Manager에서 안 쓰는 기기를 지우거나 `avdmanager delete avd -n <이름>`으로 지웁니다. 기기 안에 설치한 앱과 데이터도 함께 사라집니다.",
+    ),
+    SystemArea(
+        key="dev_cache",
+        name="개발 도구 캐시 (.cache)",
+        path="~/.cache",
+        what="여러 개발 도구가 다시 받을 수 있는 파일을 담아 두는 공용 캐시입니다.",
+        why="도구를 쓸수록 쌓이고, 대부분 스스로 비우지 않습니다.",
+        action="quarantine",
+        risk="low",
+        hint="'공간 요약'에서 분석하면 이 안의 캐시가 항목별로 잡힙니다.",
+    ),
+    SystemArea(
+        key="npm_cache",
+        name="npm 캐시 (.npm)",
+        path="~/.npm",
+        what="npm이 내려받은 패키지를 다시 쓰려고 저장해 둔 캐시입니다.",
+        why="패키지를 설치할 때마다 쌓이고, npm이 스스로 줄이지 않습니다.",
+        action="command",
+        risk="low",
+        command="npm cache clean --force",
+        hint="지워도 다음 설치 때 필요한 것만 다시 받습니다. 처음 설치가 조금 느려질 뿐입니다.",
+    ),
+    SystemArea(
+        key="cargo_registry",
+        name="Rust 패키지 원본 (cargo registry)",
+        path="~/.cargo/registry",
+        what="cargo가 내려받은 크레이트 원본과 압축 파일입니다.",
+        why="의존성 버전이 바뀔 때마다 새 버전이 추가되고, 옛 버전도 남습니다.",
+        action="command",
+        risk="low",
+        command="rm -rf ~/.cargo/registry/src ~/.cargo/registry/cache",
+        hint="지워도 다음 빌드 때 필요한 것만 다시 받습니다. ~/.cargo/bin은 설치된 도구라 건드리지 마세요.",
+    ),
+    SystemArea(
+        key="vscode_extensions",
+        name="에디터 확장 (VS Code)",
+        path="~/.vscode/extensions",
+        what="VS Code에 설치한 확장 프로그램입니다.",
+        why="확장이 업데이트될 때 옛 버전 폴더가 한동안 남기도 합니다.",
+        action="command",
+        risk="medium",
+        hint="VS Code의 확장 보기에서 안 쓰는 확장을 제거하세요. 폴더를 직접 지우면 VS Code가 확장 상태를 잃을 수 있습니다.",
+    ),
+    # ── 작업 폴더 ───────────────────────────────────────────────────────
+    SystemArea(
+        key="codex_workspaces",
+        name="Codex 작업 폴더",
+        path="~/Documents/Codex",
+        what="Codex 앱이 작업마다 만드는 폴더입니다. 작업 중에 내려받은 도구와 빌드 결과물, 완성된 결과물이 함께 들어 있습니다.",
+        why="작업을 할 때마다 날짜별 폴더가 생기고, 끝난 작업도 지우기 전까지 남습니다.",
+        action="command",
+        risk="high",
+        command="du -sh ~/Documents/Codex/*/* | sort -rh | head -15",
+        hint="결과물이 섞여 있으니 통째로 지우지 마세요. '공간 요약'에서 이 폴더를 분석하면 안쪽의 빌드 찌꺼기(.nosync 포함)만 따로 잡힙니다.",
+    ),
+    # ── 비우기 전까지 공간을 차지하는 곳 ───────────────────────────────
+    SystemArea(
+        key="trash",
+        name="휴지통",
+        path="~/.Trash",
+        what="휴지통에 넣은 파일입니다.",
+        why="휴지통에 넣어도 비우기 전까지는 공간을 그대로 차지합니다.",
+        action="command",
+        risk="medium",
+        hint="Finder에서 휴지통을 확인하고 비우면 공간이 돌아옵니다. 비우면 되돌릴 수 없습니다.",
+    ),
+    SystemArea(
+        key="spacekeeper_quarantine",
+        name="Spacekeeper 격리함",
+        path="~/.spacekeeper/quarantine",
+        what="Spacekeeper로 격리한 파일입니다.",
+        why="격리는 옮기기일 뿐이라, 비우기 전까지 공간을 그대로 차지합니다.",
+        action="command",
+        risk="low",
+        hint="'격리함' 화면에서 확인하고, 필요 없는 것만 macOS 휴지통으로 비우세요.",
+    ),
+    # ── macOS가 관리하는 큰 덩어리 ─────────────────────────────────────
+    SystemArea(
+        key="apple_assets",
+        name="애플 시스템 자산 (AI 모델·음성 등)",
+        path="/System/Library/AssetsV2",
+        what="macOS가 내려받아 두는 Apple Intelligence 모델, 받아쓰기·음성, 사전 같은 시스템 자산입니다.",
+        why="기능을 켜거나 macOS를 업데이트할 때 받아지고, 새 버전이 오면 교체됩니다.",
+        action="system",
+        risk="high",
+        hint="macOS가 관리합니다. 직접 지우면 해당 기능이 동작하지 않거나 다시 받습니다. 쓰지 않는 기능을 끄면 macOS가 관련 자산을 나중에 정리하기도 합니다.",
+    ),
+    SystemArea(
+        key="spotlight_index",
+        name="Spotlight 검색 색인",
+        path="/System/Volumes/Data/.Spotlight-V100",
+        what="Spotlight가 파일을 빨리 찾으려고 만든 색인입니다.",
+        why="파일이 많을수록, 특히 작은 파일이 수십만 개인 의존성 폴더가 많을수록 커집니다.",
+        action="system",
+        risk="medium",
+        hint="macOS가 관리합니다. 관리자만 읽을 수 있어 Spacekeeper는 크기를 잴 수 없습니다. 색인이 크다면 시스템 설정 → Spotlight에서 검색하지 않을 폴더를 지정할 수 있습니다.",
+    ),
+    SystemArea(
+        key="system_db",
+        name="시스템 데이터베이스",
+        path="/private/var/db",
+        what="macOS가 쓰는 각종 데이터베이스(진단 기록, 시스템 상태 등)입니다.",
+        why="시스템이 동작하면서 기록을 계속 남깁니다.",
+        action="system",
+        risk="high",
+        hint="macOS가 관리합니다. 직접 지우면 안 됩니다.",
+    ),
 )
+
+# 위 목록에 없는 홈의 숨김 폴더도 이 크기를 넘으면 보여 준다.
+# 무엇인지 모르면 모른다고 말한다 — 새 도구가 쌓여도 놓치지 않기 위해서다.
+_OTHER_HIDDEN_MIN_BYTES = 200 * 1024 * 1024
+OTHER_HIDDEN_NAME = "숨김 폴더 {name}"
+OTHER_HIDDEN_WHAT = "어떤 도구가 홈 폴더에 만든 숨김 폴더입니다. Spacekeeper가 아직 이 폴더가 무엇인지 설명하지 못합니다."
+OTHER_HIDDEN_WHY = "보통 개발 도구가 설정·캐시·설치본을 여기에 둡니다."
+OTHER_HIDDEN_HINT = "이름으로 어떤 도구 것인지 확인한 뒤 그 도구에서 정리하세요. 설정이 함께 들어 있을 수 있어 통째로 지우지 마세요."
+
+
+def _known_hidden_names() -> set[str]:
+    """목록에 이미 있는 홈 숨김 폴더의 맨 위 이름(.local, .codex …)."""
+    names = set()
+    for area in AREAS:
+        if area.path.startswith("~/."):
+            names.add(area.path[2:].split("/", 1)[0])
+    return names
+
+
+def _other_hidden_areas(home: Path) -> list[SystemArea]:
+    known = _known_hidden_names()
+    areas = []
+    try:
+        entries = sorted(home.iterdir())
+    except OSError:
+        return areas
+    for entry in entries:
+        name = entry.name
+        if not name.startswith(".") or name in known:
+            continue
+        try:
+            if entry.is_symlink() or not entry.is_dir():
+                continue
+        except OSError:
+            continue
+        areas.append(
+            SystemArea(
+                key=f"hidden:{name}",
+                name=OTHER_HIDDEN_NAME.format(name=name),
+                path=f"~/{name}",
+                what=OTHER_HIDDEN_WHAT,
+                why=OTHER_HIDDEN_WHY,
+                action="command",
+                risk="medium",
+                command=f"du -sh ~/{name}/* 2>/dev/null | sort -rh | head",
+                hint=OTHER_HIDDEN_HINT,
+            )
+        )
+    return areas
 
 
 class Measurement(NamedTuple):
@@ -286,7 +488,9 @@ def analyze() -> dict:
     def resolve(raw: str) -> Path:
         return Path(raw.replace("~", str(home), 1)) if raw.startswith("~") else Path(raw)
 
-    targets = [(area, resolve(area.path)) for area in AREAS]
+    others = _other_hidden_areas(home)
+    other_keys = {area.key for area in others}
+    targets = [(area, resolve(area.path)) for area in (*AREAS, *others)]
     with ThreadPoolExecutor(max_workers=min(8, (os.cpu_count() or 2) + 2)) as executor:
         measured = list(executor.map(lambda item: _measure(item[1]), targets))
 
@@ -298,6 +502,8 @@ def analyze() -> dict:
         # 사용자는 그 영역이 있는지조차 모르게 된다.
         if not exists or (size <= 0 and denied == 0):
             continue
+        if area.key in other_keys and size < _OTHER_HIDDEN_MIN_BYTES:
+            continue  # 모르는 숨김 폴더는 클 때만 보여 준다
         total_bytes += size
         items.append(
             {

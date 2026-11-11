@@ -38,6 +38,24 @@ class AreaDefinitionTests(unittest.TestCase):
                 )
 
 
+    def test_every_area_is_translated(self) -> None:
+        """영역 문구는 영어 화면에서도 보여야 한다. 새 영역을 넣고 번역을 빼먹으면 여기서 잡힌다."""
+        i18n = (Path(systemdata.__file__).parent / "web" / "i18n.js").read_text(encoding="utf-8")
+        texts = [systemdata.OTHER_HIDDEN_WHAT, systemdata.OTHER_HIDDEN_WHY, systemdata.OTHER_HIDDEN_HINT]
+        for area in systemdata.AREAS:
+            texts += [area.name, area.what, area.why] + ([area.hint] if area.hint else [])
+        missing = [t for t in texts if f'"{t}"' not in i18n]
+        self.assertEqual(missing, [])
+        self.assertIn("숨김 폴더 (\\..+)", i18n)  # 이름이 바뀌는 숨김 폴더는 패턴으로 번역
+
+    def test_trash_and_quarantine_are_never_emptied_by_the_app(self) -> None:
+        """휴지통 비우기는 되돌릴 수 없어 사용자가 한다. 격리함도 '격리함' 화면에서만 다룬다."""
+        by_key = {area.key: area for area in systemdata.AREAS}
+        for key in ("trash", "spacekeeper_quarantine"):
+            self.assertNotEqual(by_key[key].action, "quarantine")
+            self.assertEqual(by_key[key].command, "")
+
+
 class MeasureTests(unittest.TestCase):
     def test_counts_files_and_skips_symlinks(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -178,6 +196,32 @@ class AnalyzeTests(unittest.TestCase):
             self.assertEqual(item["size"], 0)
             self.assertFalse(item["complete"])
             self.assertFalse(item["reachable"])
+
+    def test_unknown_hidden_folders_show_up_only_when_large(self) -> None:
+        """목록에 없는 숨김 폴더도 크면 보여 준다. 무엇인지 모른다고 말하면서."""
+        with TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            big = home / ".sometool"
+            big.mkdir()
+            (big / "blob").write_bytes(b"x" * 200_000)
+            tiny = home / ".tinytool"
+            tiny.mkdir()
+            (tiny / "cfg").write_bytes(b"x" * 100)
+            known = home / ".known"
+            known.mkdir()
+            (known / "blob").write_bytes(b"x" * 200_000)
+
+            areas = (self._area("known", "~/.known"),)
+            with mock.patch.object(systemdata, "AREAS", areas), mock.patch.object(
+                systemdata, "_OTHER_HIDDEN_MIN_BYTES", 100_000
+            ), mock.patch.object(systemdata.Path, "home", classmethod(lambda cls: home)):
+                result = systemdata.analyze()
+
+            keys = sorted(item["key"] for item in result["items"])
+            self.assertEqual(keys, ["hidden:.sometool", "known"])  # 작은 것은 숨기고, 아는 것은 한 번만
+            other = next(i for i in result["items"] if i["key"] == "hidden:.sometool")
+            self.assertEqual(other["name"], "숨김 폴더 .sometool")
+            self.assertEqual(other["what"], systemdata.OTHER_HIDDEN_WHAT)
 
     def test_analysis_never_modifies_anything(self) -> None:
         """이 화면은 진단 전용이다. 분석 후 파일이 그대로 있어야 한다."""

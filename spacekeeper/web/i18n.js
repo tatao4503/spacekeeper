@@ -69,6 +69,104 @@ const EN = {
   "가상 메모리 (스왑)": "Virtual memory (swap)",
   "시스템 로그": "System logs",
   "iPhone·iPad 백업": "iPhone / iPad backups",
+  // 시스템 데이터 — 홈 숨김 폴더·작업 폴더·시스템 자산
+  "개발 도구 데이터 (.local)": "Developer tool data (.local)",
+  "여러 개발 도구가 설치본·데이터(share)와 실행 상태(state)를 두는 곳입니다. Claude Code 설치본이나 VM 샌드박스 이미지가 여기 쌓이기도 합니다.":
+    "Where many developer tools keep installs and data (share) and runtime state (state). Claude Code installs and VM sandbox images can pile up here.",
+  "도구를 업데이트하면 옛 설치본이, 가상머신을 쓰면 디스크 이미지와 상태가 남습니다.":
+    "Updating a tool leaves old installs behind; using virtual machines leaves disk images and state.",
+  "어느 도구가 큰지 확인한 뒤 그 도구의 정리 기능을 쓰세요. 폴더째 지우면 도구가 설치본과 설정을 잃습니다.":
+    "Find which tool is large, then use that tool's own cleanup. Deleting the whole folder makes tools lose their installs and settings.",
+  "Codex 대화 기록·플러그인 (.codex)": "Codex history & plugins (.codex)",
+  "Codex CLI·앱이 저장한 대화 기록(sessions, archived_sessions)과 플러그인입니다.":
+    "Conversation history (sessions, archived_sessions) and plugins saved by the Codex CLI and app.",
+  "대화할 때마다 기록이 쌓이고, 보관한 대화도 지우기 전까지 남습니다.":
+    "Every conversation adds to it, and archived conversations stay until you delete them.",
+  "archived_sessions는 보관해 둔 지난 대화입니다. 지우면 그 대화를 다시 열 수 없습니다. 설정 파일(config.toml 등)은 남겨 두세요.":
+    "archived_sessions holds past conversations you archived; deleting it means you can't reopen them. Keep the settings files (config.toml and so on).",
+  "Claude Code 기록 (.claude)": "Claude Code history (.claude)",
+  "Claude Code의 프로젝트별 대화 기록과 기억(memory), 설정입니다.":
+    "Claude Code's per-project conversation history, memory and settings.",
+  "대화할 때마다 기록이 쌓입니다.": "Every conversation adds to it.",
+  "기억과 설정이 같은 폴더에 들어 있어서, 통째로 지우면 Claude Code가 지금까지 기억한 것을 잃습니다. 줄이려면 projects 안의 오래된 대화 기록(.jsonl)만 고르세요.":
+    "Memory and settings live in the same folder, so deleting it wholesale makes Claude Code forget what it has learned. To shrink it, pick only old conversation logs (.jsonl) inside projects.",
+  "안드로이드 에뮬레이터 기기 (AVD)": "Android emulator devices (AVD)",
+  "안드로이드 에뮬레이터로 만든 가상 기기와 그 안의 데이터입니다.":
+    "Virtual devices created for the Android emulator, and the data inside them.",
+  "가상 기기를 만들 때마다 디스크 이미지가 생기고, 지우기 전까지 남습니다.":
+    "Each virtual device gets a disk image that stays until you delete the device.",
+  "Android Studio의 Device Manager에서 안 쓰는 기기를 지우거나 `avdmanager delete avd -n <이름>`으로 지웁니다. 기기 안에 설치한 앱과 데이터도 함께 사라집니다.":
+    "Delete unused devices in Android Studio's Device Manager or with `avdmanager delete avd -n <name>`. Apps and data installed on the device go with it.",
+  "개발 도구 캐시 (.cache)": "Developer tool cache (.cache)",
+  "여러 개발 도구가 다시 받을 수 있는 파일을 담아 두는 공용 캐시입니다.":
+    "A shared cache where developer tools keep files they can download again.",
+  "도구를 쓸수록 쌓이고, 대부분 스스로 비우지 않습니다.":
+    "It grows as you use the tools, and most never clear it themselves.",
+  "npm 캐시 (.npm)": "npm cache (.npm)",
+  "npm이 내려받은 패키지를 다시 쓰려고 저장해 둔 캐시입니다.":
+    "npm's cache of downloaded packages, kept for reuse.",
+  "패키지를 설치할 때마다 쌓이고, npm이 스스로 줄이지 않습니다.":
+    "It grows with every install, and npm doesn't shrink it on its own.",
+  "지워도 다음 설치 때 필요한 것만 다시 받습니다. 처음 설치가 조금 느려질 뿐입니다.":
+    "After clearing, the next install downloads only what it needs. The first install is just a little slower.",
+  "Rust 패키지 원본 (cargo registry)": "Rust package sources (cargo registry)",
+  "cargo가 내려받은 크레이트 원본과 압축 파일입니다.":
+    "Crate sources and archives downloaded by cargo.",
+  "의존성 버전이 바뀔 때마다 새 버전이 추가되고, 옛 버전도 남습니다.":
+    "Each dependency version bump adds a new copy, and the old ones stay.",
+  "지워도 다음 빌드 때 필요한 것만 다시 받습니다. ~/.cargo/bin은 설치된 도구라 건드리지 마세요.":
+    "After clearing, the next build downloads only what it needs. Leave ~/.cargo/bin alone — those are installed tools.",
+  "에디터 확장 (VS Code)": "Editor extensions (VS Code)",
+  "VS Code에 설치한 확장 프로그램입니다.": "Extensions installed in VS Code.",
+  "확장이 업데이트될 때 옛 버전 폴더가 한동안 남기도 합니다.":
+    "When an extension updates, the old version's folder can linger for a while.",
+  "VS Code의 확장 보기에서 안 쓰는 확장을 제거하세요. 폴더를 직접 지우면 VS Code가 확장 상태를 잃을 수 있습니다.":
+    "Uninstall unused extensions from VS Code's Extensions view. Deleting folders by hand can leave VS Code confused about its extensions.",
+  "Codex 작업 폴더": "Codex work folders",
+  "Codex 앱이 작업마다 만드는 폴더입니다. 작업 중에 내려받은 도구와 빌드 결과물, 완성된 결과물이 함께 들어 있습니다.":
+    "Folders the Codex app creates per task. They hold tools downloaded during the task, build output, and the finished results together.",
+  "작업을 할 때마다 날짜별 폴더가 생기고, 끝난 작업도 지우기 전까지 남습니다.":
+    "Each task adds a dated folder, and finished tasks stay until you delete them.",
+  "결과물이 섞여 있으니 통째로 지우지 마세요. '공간 요약'에서 이 폴더를 분석하면 안쪽의 빌드 찌꺼기(.nosync 포함)만 따로 잡힙니다.":
+    "Results are mixed in, so don't delete it wholesale. Analysing this folder in Overview picks out just the build leftovers inside (including .nosync folders).",
+  "휴지통": "Trash",
+  "휴지통에 넣은 파일입니다.": "Files you moved to the Trash.",
+  "휴지통에 넣어도 비우기 전까지는 공간을 그대로 차지합니다.":
+    "Moving files to the Trash doesn't free space until the Trash is emptied.",
+  "Finder에서 휴지통을 확인하고 비우면 공간이 돌아옵니다. 비우면 되돌릴 수 없습니다.":
+    "Check the Trash in Finder and empty it to get the space back. Emptying can't be undone.",
+  "Spacekeeper 격리함": "Spacekeeper quarantine",
+  "Spacekeeper로 격리한 파일입니다.": "Files you quarantined with Spacekeeper.",
+  "격리는 옮기기일 뿐이라, 비우기 전까지 공간을 그대로 차지합니다.":
+    "Quarantine only moves files, so they keep taking space until you empty it.",
+  "'격리함' 화면에서 확인하고, 필요 없는 것만 macOS 휴지통으로 비우세요.":
+    "Review them on the Quarantine screen and send only what you don't need to the macOS Trash.",
+  "애플 시스템 자산 (AI 모델·음성 등)": "Apple system assets (AI models, voices…)",
+  "macOS가 내려받아 두는 Apple Intelligence 모델, 받아쓰기·음성, 사전 같은 시스템 자산입니다.":
+    "System assets macOS downloads, such as Apple Intelligence models, dictation and voices, and dictionaries.",
+  "기능을 켜거나 macOS를 업데이트할 때 받아지고, 새 버전이 오면 교체됩니다.":
+    "They're downloaded when you turn features on or update macOS, and replaced when new versions arrive.",
+  "macOS가 관리합니다. 직접 지우면 해당 기능이 동작하지 않거나 다시 받습니다. 쓰지 않는 기능을 끄면 macOS가 관련 자산을 나중에 정리하기도 합니다.":
+    "Managed by macOS. Deleting them breaks the feature or makes macOS download them again. Turning off features you don't use can let macOS remove their assets later.",
+  "Spotlight 검색 색인": "Spotlight search index",
+  "Spotlight가 파일을 빨리 찾으려고 만든 색인입니다.":
+    "The index Spotlight builds to find files quickly.",
+  "파일이 많을수록, 특히 작은 파일이 수십만 개인 의존성 폴더가 많을수록 커집니다.":
+    "It grows with the number of files — especially dependency folders with hundreds of thousands of small files.",
+  "macOS가 관리합니다. 관리자만 읽을 수 있어 Spacekeeper는 크기를 잴 수 없습니다. 색인이 크다면 시스템 설정 → Spotlight에서 검색하지 않을 폴더를 지정할 수 있습니다.":
+    "Managed by macOS. Only administrators can read it, so Spacekeeper can't measure it. If the index is large, you can exclude folders in System Settings → Spotlight.",
+  "시스템 데이터베이스": "System databases",
+  "macOS가 쓰는 각종 데이터베이스(진단 기록, 시스템 상태 등)입니다.":
+    "Databases macOS uses for diagnostics, system state and more.",
+  "시스템이 동작하면서 기록을 계속 남깁니다.": "The system keeps writing to them as it runs.",
+  "macOS가 관리합니다. 직접 지우면 안 됩니다.": "Managed by macOS. Don't delete these by hand.",
+  "어떤 도구가 홈 폴더에 만든 숨김 폴더입니다. Spacekeeper가 아직 이 폴더가 무엇인지 설명하지 못합니다.":
+    "A hidden folder some tool created in your home folder. Spacekeeper can't yet explain what it is.",
+  "보통 개발 도구가 설정·캐시·설치본을 여기에 둡니다.":
+    "Developer tools usually keep settings, caches and installs in folders like this.",
+  "이름으로 어떤 도구 것인지 확인한 뒤 그 도구에서 정리하세요. 설정이 함께 들어 있을 수 있어 통째로 지우지 마세요.":
+    "Work out which tool it belongs to from the name, then clean it up from that tool. Settings may be inside, so don't delete it wholesale.",
+
 
   // 시스템 데이터 — 설명
   "Xcode 시뮬레이터가 쓰는 iOS·watchOS 런타임 디스크 이미지입니다.":
@@ -720,6 +818,8 @@ const EN = {
  * (숫자·용량·시간 값은 그대로 두고 단위/문구만 영어로 바꾼다.)
  */
 const EN_PATTERNS = [
+  // 시스템 데이터: 목록에 없는 홈 숨김 폴더
+  [/^숨김 폴더 (\..+)$/, (m) => `Hidden folder ${m[1]}`],
   // 시스템 데이터: 권한이 없어 일부만 잰 영역
   [/^권한이 없어 (\d+)개 영역은 일부만 쟀습니다\. 실제 합계는 이보다 큽니다\. 시스템 설정 → 개인정보 보호 및 보안 → 전체 디스크 접근 권한에서 Spacekeeper를 켜면 전부 잴 수 있습니다\.$/,
     (m) => `Without permission, ${m[1]} areas were only partly measured, so the real total is larger. Turn on Spacekeeper in System Settings → Privacy & Security → Full Disk Access to measure everything.`],
