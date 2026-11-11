@@ -30,6 +30,9 @@ const EN = {
   "macOS가 '시스템 데이터'로 뭉뚱그린 덩어리가 실제로 어떤 폴더인지 분해합니다. 홈 폴더 밖까지 살펴보며, 여기서는 아무것도 옮기거나 지우지 않습니다.":
     "Breaks down the blob macOS lumps together as \"System Data\" into the actual folders behind it. It looks outside your home folder too, and nothing here is moved or deleted.",
   "시스템 데이터 분석": "Analyze system data",
+  "이상": "or more",
+  "일부만 측정": "Partly measured",
+  "측정 못 함": "Couldn't measure",
   "시스템 데이터를 살펴보는 중… 홈 폴더 밖까지 훑기 때문에 시간이 걸립니다.":
     "Examining system data… this takes a while because it walks outside your home folder.",
   "시스템 데이터로 잡히는 용량": "Counted as system data",
@@ -717,6 +720,11 @@ const EN = {
  * (숫자·용량·시간 값은 그대로 두고 단위/문구만 영어로 바꾼다.)
  */
 const EN_PATTERNS = [
+  // 시스템 데이터: 권한이 없어 일부만 잰 영역
+  [/^권한이 없어 (\d+)개 영역은 일부만 쟀습니다\. 실제 합계는 이보다 큽니다\. 시스템 설정 → 개인정보 보호 및 보안 → 전체 디스크 접근 권한에서 Spacekeeper를 켜면 전부 잴 수 있습니다\.$/,
+    (m) => `Without permission, ${m[1]} areas were only partly measured, so the real total is larger. Turn on Spacekeeper in System Settings → Privacy & Security → Full Disk Access to measure everything.`],
+  [/^권한이 없어 폴더 (\d+)곳을 열지 못했습니다\. 실제 크기는 이보다 클 수 있습니다\.$/,
+    (m) => `Couldn't open ${m[1]} folders without permission. The real size may be larger.`],
   // 목록 요약
   [/^(.+?)개 파일 · 총 (.+?) \(최소 크기 (.+?)\)$/,
     (m) => `${m[1]} files · ${m[2]} total (min ${m[3]})`],

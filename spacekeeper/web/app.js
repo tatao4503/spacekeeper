@@ -1441,7 +1441,7 @@ function renderSystemData(data) {
   summary.innerHTML = `
     <div class="sd-total">
       <div class="sd-total-label">시스템 데이터로 잡히는 용량</div>
-      <div class="sd-total-value">${fmtBytes(total)}</div>
+      <div class="sd-total-value">${fmtBytes(total)}${data.total_is_lower_bound ? '<span class="sd-lower">이상</span>' : ""}</div>
       <div class="sd-total-meta">
         <span>홈 폴더 밖 <b>${fmtBytes(data.outside_home_bytes || 0)}</b></span>
         <span class="sep">·</span>
@@ -1450,6 +1450,7 @@ function renderSystemData(data) {
         <span>디스크 여유 <b>${fmtBytes(data.disk?.free || 0)}</b></span>
       </div>
     </div>
+    ${data.total_is_lower_bound ? `<p class="sd-partial-note">권한이 없어 ${data.incomplete_count}개 영역은 일부만 쟀습니다. 실제 합계는 이보다 큽니다. 시스템 설정 → 개인정보 보호 및 보안 → 전체 디스크 접근 권한에서 Spacekeeper를 켜면 전부 잴 수 있습니다.</p>` : ""}
     <p class="sd-note">측정은 실제 할당 블록 기준입니다. macOS 저장공간 설정이 보여주는 '시스템 데이터' 숫자와는 분류 기준이 달라 정확히 일치하지 않을 수 있습니다.</p>`;
 
   list.innerHTML = "";
@@ -1470,15 +1471,21 @@ function renderSystemData(data) {
           <span class="sd-name">
             ${escapeHtml(item.name)}
             ${item.outside_home ? '<span class="sd-tag">홈 폴더 밖</span>' : ""}
+            ${item.complete === false ? '<span class="sd-tag sd-tag-partial">일부만 측정</span>' : ""}
           </span>
           <span class="sd-path">${escapeHtml(item.display_path)}</span>
           <span class="sd-bar"><i style="width:${pct}%"></i></span>
         </span>
-        <span class="sd-size">${fmtBytes(item.size)}</span>
+        <span class="sd-size">${
+          item.complete === false && item.size <= 0
+            ? "측정 못 함"
+            : fmtBytes(item.size) + (item.complete === false ? '<span class="sd-lower">이상</span>' : "")
+        }</span>
         <span class="badge ${meta.cls}">${meta.label}</span>
         <span class="lf-caret" aria-hidden="true">›</span>
       </button>
       <div class="sd-body" id="${bodyId}" hidden>
+        ${item.complete === false ? `<p class="sd-partial-note">권한이 없어 폴더 ${item.denied_dirs}곳을 열지 못했습니다. 실제 크기는 이보다 클 수 있습니다.</p>` : ""}
         <p class="sd-what">${escapeHtml(item.what)}</p>
         <p class="sd-why"><b>왜 쌓이나</b> ${escapeHtml(item.why)}</p>
         ${item.hint ? `<p class="sd-hint">${escapeHtml(item.hint)}</p>` : ""}

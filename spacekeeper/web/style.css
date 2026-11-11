@@ -1542,3 +1542,13 @@ html[data-shell="desktop"] .titlebar-drag {
 }
 html[data-shell="desktop"] .sidebar { padding-top: 52px; }
 
+/* 시스템 데이터: 권한이 없어 일부만 잰 영역 — 숫자가 '최소값'이라는 걸 숨기지 않는다 */
+.sd-lower { font-size: 0.62em; font-weight: 600; color: var(--muted); margin-left: 4px; letter-spacing: 0; }
+.sd-tag-partial { color: var(--medium); border-color: var(--medium); }
+.sd-partial-note {
+  margin: 10px 2px 0; font-size: 12px; line-height: 1.6; color: var(--text);
+  background: var(--panel-2); border-left: 3px solid var(--medium);
+  border-radius: 8px; padding: 9px 12px;
+}
+.sd-body .sd-partial-note { margin: 14px 0 0; }
+

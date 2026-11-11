@@ -48,15 +48,34 @@ class MeasureTests(unittest.TestCase):
             (nested / "b.bin").write_bytes(b"y" * 4096)
             (root / "link").symlink_to(nested)
 
-            size, files, reachable = systemdata._measure(root)
+            size, files, reachable, denied = systemdata._measure(root)
             self.assertTrue(reachable)
+            self.assertEqual(denied, 0)
             self.assertEqual(files, 2)  # 심링크를 따라가 중복 계산하지 않는다
             self.assertGreater(size, 0)
 
     def test_missing_path_is_zero_and_unreachable(self) -> None:
         with TemporaryDirectory() as tmp:
-            size, files, reachable = systemdata._measure(Path(tmp) / "nope")
-            self.assertEqual((size, files, reachable), (0, 0, False))
+            m = systemdata._measure(Path(tmp) / "nope")
+            self.assertEqual((m.size, m.files, m.reachable, m.denied), (0, 0, False, 0))
+
+    def test_unreadable_folders_are_counted_not_silently_skipped(self) -> None:
+        """권한이 없어 못 연 폴더는 건너뛰되 센다. 예전엔 조용히 넘어가서
+        다른 앱 데이터 760개를 하나도 못 읽고도 '18MB'라고 보고했다."""
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "readable.bin").write_bytes(b"x" * 4096)
+            locked = root / "locked"
+            locked.mkdir()
+            (locked / "hidden.bin").write_bytes(b"y" * 400_000)
+            locked.chmod(0)
+            try:
+                m = systemdata._measure(root)
+            finally:
+                locked.chmod(0o755)
+            self.assertTrue(m.reachable)
+            self.assertEqual(m.denied, 1)
+            self.assertEqual(m.files, 1)  # 잠긴 폴더 안의 파일은 세지 못했다
 
 
 class AnalyzeTests(unittest.TestCase):
@@ -116,6 +135,49 @@ class AnalyzeTests(unittest.TestCase):
             self.assertFalse(flags["inside"])
             self.assertTrue(flags["outside"])
             self.assertGreater(result["outside_home_bytes"], 0)
+
+    def test_partly_unreadable_area_is_flagged_and_total_is_a_lower_bound(self) -> None:
+        with TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            area_dir = home / "area"
+            area_dir.mkdir()
+            (area_dir / "seen.bin").write_bytes(b"x" * 8192)
+            locked = area_dir / "locked"
+            locked.mkdir()
+            locked.chmod(0)
+            try:
+                with mock.patch.object(
+                    systemdata, "AREAS", (self._area("area", str(area_dir)),)
+                ), mock.patch.object(systemdata.Path, "home", classmethod(lambda cls: home)):
+                    result = systemdata.analyze()
+            finally:
+                locked.chmod(0o755)
+            item = result["items"][0]
+            self.assertFalse(item["complete"])
+            self.assertEqual(item["denied_dirs"], 1)
+            self.assertTrue(result["total_is_lower_bound"])
+            self.assertEqual(result["incomplete_count"], 1)
+
+    def test_fully_unreadable_area_is_kept_not_dropped(self) -> None:
+        """통째로 못 읽어 0바이트인 영역을 빼면, 사용자는 그 영역이 있는지조차 모른다."""
+        with TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            area_dir = home / "area"
+            area_dir.mkdir()
+            (area_dir / "hidden.bin").write_bytes(b"x" * 8192)
+            area_dir.chmod(0)
+            try:
+                with mock.patch.object(
+                    systemdata, "AREAS", (self._area("area", str(area_dir)),)
+                ), mock.patch.object(systemdata.Path, "home", classmethod(lambda cls: home)):
+                    result = systemdata.analyze()
+            finally:
+                area_dir.chmod(0o755)
+            self.assertEqual(len(result["items"]), 1)
+            item = result["items"][0]
+            self.assertEqual(item["size"], 0)
+            self.assertFalse(item["complete"])
+            self.assertFalse(item["reachable"])
 
     def test_analysis_never_modifies_anything(self) -> None:
         """이 화면은 진단 전용이다. 분석 후 파일이 그대로 있어야 한다."""

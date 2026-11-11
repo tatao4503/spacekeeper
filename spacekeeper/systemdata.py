@@ -22,6 +22,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 _MEASURE_TIMEOUT_SECONDS = 5
 
@@ -216,11 +217,23 @@ AREAS: tuple[SystemArea, ...] = (
 )
 
 
-def _measure(path: Path) -> tuple[int, int, bool]:
-    """(할당 바이트, 파일 수, 접근가능) — 심링크는 따라가지 않고, 권한 오류는 건너뛴다."""
+class Measurement(NamedTuple):
+    size: int        # 할당 바이트 (실제로 읽은 만큼)
+    files: int
+    reachable: bool  # 맨 위 폴더라도 열었는가
+    denied: int      # 권한이 없어 열지 못한 폴더 수 — 0이 아니면 size는 '최소값'이다
+
+
+def _measure(path: Path) -> Measurement:
+    """심링크는 따라가지 않는다. 권한 때문에 못 연 폴더는 건너뛰되 **센다**.
+
+    예전에는 못 연 폴더를 조용히 건너뛰어서, 다른 앱 데이터(~/Library/Containers)
+    760개를 하나도 못 읽고도 '18MB'라고 보고했다. 못 읽었으면 못 읽었다고 말해야 한다.
+    """
     total = 0
     files = 0
     reachable = False
+    denied = 0
     stack = [path]
     while stack:
         current = stack.pop()
@@ -240,9 +253,11 @@ def _measure(path: Path) -> tuple[int, int, bool]:
                     blocks = getattr(stat, "st_blocks", None)
                     total += blocks * 512 if blocks is not None else stat.st_size
                     files += 1
+        except PermissionError:
+            denied += 1
         except OSError:
-            continue
-    return total, files, reachable
+            continue  # 재는 동안 사라진 폴더 등 — 권한 문제가 아니다
+    return Measurement(total, files, reachable, denied)
 
 
 def _local_snapshots() -> list[str]:
@@ -277,9 +292,11 @@ def analyze() -> dict:
 
     items = []
     total_bytes = 0
-    for (area, resolved), (size, files, reachable) in zip(targets, measured):
+    for (area, resolved), (size, files, reachable, denied) in zip(targets, measured):
         exists = resolved.exists()
-        if not exists or size <= 0:
+        # 없는 영역과 정말 빈 영역은 뺀다. 못 읽어서 0인 영역은 빼면 안 된다 —
+        # 사용자는 그 영역이 있는지조차 모르게 된다.
+        if not exists or (size <= 0 and denied == 0):
             continue
         total_bytes += size
         items.append(
@@ -292,6 +309,8 @@ def analyze() -> dict:
                 "size": size,
                 "file_count": files,
                 "reachable": reachable,
+                "denied_dirs": denied,
+                "complete": denied == 0,
                 "what": area.what,
                 "why": area.why,
                 "action": area.action,
@@ -304,9 +323,13 @@ def analyze() -> dict:
 
     usage = shutil.disk_usage(home)
     snapshots = _local_snapshots()
+    incomplete = [i for i in items if not i["complete"]]
     return {
         "items": items,
         "total_bytes": total_bytes,
+        # 하나라도 일부만 쟀으면 합계는 '최소값'이다. 화면이 '이상'으로 표시한다.
+        "total_is_lower_bound": bool(incomplete),
+        "incomplete_count": len(incomplete),
         "disk": {"total": usage.total, "used": usage.used, "free": usage.free},
         "snapshot_count": len(snapshots),
         "outside_home_bytes": sum(i["size"] for i in items if i["outside_home"]),
