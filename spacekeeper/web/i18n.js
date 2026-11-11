@@ -69,6 +69,42 @@ const EN = {
   "가상 메모리 (스왑)": "Virtual memory (swap)",
   "시스템 로그": "System logs",
   "iPhone·iPad 백업": "iPhone / iPad backups",
+  // 디스크 전체 맞춰보기
+  "디스크 전체 맞춰보기": "Reconcile the whole disk",
+  "디스크가 실제로 쓰는 양과 Spacekeeper가 확인한 양을 나란히 놓습니다. 위 목록에 안 잡히는 공간이 얼마인지, 어디에 있는지 알 수 있습니다. 30초쯤 걸립니다.":
+    "Puts what the disk actually uses next to what Spacekeeper could account for, so you can see how much space the list above misses and where it is. Takes about 30 seconds.",
+  "맞춰보기": "Reconcile",
+  "디스크 전체를 훑는 중… 30초쯤 걸립니다.": "Walking the whole disk… about 30 seconds.",
+  "디스크 정보를 읽지 못했습니다.": "Couldn't read disk information.",
+  "데이터 볼륨이 쓰는 공간": "Space used by the data volume",
+  "알 수 없음": "Unknown",
+  "확인한 공간": "Accounted for",
+  "확인 못 한 공간": "Not accounted for",
+  "볼륨 정보를 읽지 못해 차이를 계산하지 않았습니다.":
+    "Volume information couldn't be read, so the difference wasn't calculated.",
+  "확인 못 한 공간에는 보통 이런 것이 있습니다. 권한이 없어 열지 못한 폴더, macOS가 필요할 때 알아서 비우는 '삭제 가능' 공간, 파일 시스템 관리 정보입니다. 전체 디스크 접근 권한을 켜면 이 숫자가 줄어듭니다.":
+    "Space not accounted for usually means folders that couldn't be opened without permission, purgeable space macOS frees on its own when needed, and file system bookkeeping. Turning on Full Disk Access makes this number smaller.",
+  "권한이 없어 열지 못한 폴더 수": "Folders that couldn't be opened",
+  "로컬 스냅샷 수": "Local snapshots",
+  "데이터 볼륨의 맨 위 폴더": "Top-level folders on the data volume",
+  "같은 디스크의 다른 볼륨": "Other volumes on the same disk",
+  "이 볼륨들은 폴더로 보이지 않아서 위 목록과 맞춰보기에 잡히지 않습니다. 전부 macOS가 관리합니다.":
+    "These volumes don't appear as folders, so neither the list above nor the reconciliation includes them. macOS manages all of them.",
+  "macOS 시스템": "macOS system",
+  "macOS 자체가 들어 있는 봉인된 볼륨입니다. macOS를 업데이트할 때만 바뀝니다.":
+    "The sealed volume that holds macOS itself. It only changes when macOS updates.",
+  "부팅 준비 영역 (Preboot)": "Boot preparation (Preboot)",
+  "Mac을 켤 때 필요한 파일과, 빠른 보안 응답 같은 시스템 구성 요소를 macOS가 두는 볼륨입니다.":
+    "Where macOS keeps files needed to start up, plus system components such as Rapid Security Responses.",
+  "복구 모드": "Recovery",
+  "macOS 복구 모드에서 쓰는 볼륨입니다.": "The volume used by macOS Recovery.",
+  "가상 메모리": "Virtual memory",
+  "메모리가 모자랄 때 쓰는 스왑과 잠자기 이미지를 두는 볼륨입니다.":
+    "Holds swap and the sleep image used when memory runs short.",
+  "업데이트 준비 영역": "Update staging",
+  "내려받은 macOS 업데이트를 설치하기 전에 두는 볼륨입니다.":
+    "Where downloaded macOS updates wait before being installed.",
+
   // 시스템 데이터 — 홈 숨김 폴더·작업 폴더·시스템 자산
   "개발 도구 데이터 (.local)": "Developer tool data (.local)",
   "여러 개발 도구가 설치본·데이터(share)와 실행 상태(state)를 두는 곳입니다. Claude Code 설치본이나 VM 샌드박스 이미지가 여기 쌓이기도 합니다.":

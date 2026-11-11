@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import os
+import plistlib
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
@@ -426,7 +427,7 @@ class Measurement(NamedTuple):
     denied: int      # 권한이 없어 열지 못한 폴더 수 — 0이 아니면 size는 '최소값'이다
 
 
-def _measure(path: Path) -> Measurement:
+def _measure(path: Path, device: int | None = None) -> Measurement:
     """심링크는 따라가지 않는다. 권한 때문에 못 연 폴더는 건너뛰되 **센다**.
 
     예전에는 못 연 폴더를 조용히 건너뛰어서, 다른 앱 데이터(~/Library/Containers)
@@ -447,7 +448,9 @@ def _measure(path: Path) -> Measurement:
                         if entry.is_symlink():
                             continue
                         if entry.is_dir(follow_symlinks=False):
-                            stack.append(Path(entry.path))
+                            # 디스크 전체를 훑을 때는 다른 볼륨(외장 드라이브 등)으로 넘어가지 않는다.
+                            if device is None or entry.stat(follow_symlinks=False).st_dev == device:
+                                stack.append(Path(entry.path))
                             continue
                         stat = entry.stat(follow_symlinks=False)
                     except OSError:
@@ -543,3 +546,121 @@ def analyze() -> dict:
             i["size"] for i in items if i["action"] == "quarantine"
         ),
     }
+
+
+# ── 디스크 전체 맞춰보기 ────────────────────────────────────────────────
+# 위 영역 목록은 '알려진 곳'만 잰다. 그러면 목록 밖에 있는 공간이 얼마인지는
+# 알 수 없다. 여기서는 디스크가 실제로 쓰는 양과, 폴더를 전부 훑어서 확인한 양을
+# 나란히 놓는다. 차이를 숨기지 않고 '확인 못 한 공간'으로 보여 주기 위해서다.
+
+DATA_ROOT = Path("/System/Volumes/Data")
+
+# 같은 디스크(APFS 컨테이너)에 있는 다른 볼륨들. 폴더로는 보이지 않는다.
+VOLUME_ROLES = {
+    "System": ("macOS 시스템", "macOS 자체가 들어 있는 봉인된 볼륨입니다. macOS를 업데이트할 때만 바뀝니다."),
+    "Preboot": ("부팅 준비 영역 (Preboot)", "Mac을 켤 때 필요한 파일과, 빠른 보안 응답 같은 시스템 구성 요소를 macOS가 두는 볼륨입니다."),
+    "Recovery": ("복구 모드", "macOS 복구 모드에서 쓰는 볼륨입니다."),
+    "VM": ("가상 메모리", "메모리가 모자랄 때 쓰는 스왑과 잠자기 이미지를 두는 볼륨입니다."),
+    "Update": ("업데이트 준비 영역", "내려받은 macOS 업데이트를 설치하기 전에 두는 볼륨입니다."),
+}
+
+
+def _run_plist(args: list[str]) -> dict | None:
+    try:
+        out = subprocess.run(args, capture_output=True, timeout=_MEASURE_TIMEOUT_SECONDS * 2, check=False)
+        return plistlib.loads(out.stdout) if out.returncode == 0 and out.stdout else None
+    except (OSError, subprocess.SubprocessError, plistlib.InvalidFileException, ValueError):
+        return None
+
+
+def _apfs_volumes(root: Path) -> tuple[list[dict], dict] | None:
+    """root가 들어 있는 APFS 컨테이너의 볼륨 목록. 알 수 없으면 None."""
+    info = _run_plist(["/usr/sbin/diskutil", "info", "-plist", str(root)])
+    listing = _run_plist(["/usr/sbin/diskutil", "apfs", "list", "-plist"])
+    if not info or not listing:
+        return None
+    container_ref = info.get("APFSContainerReference")
+    data_device = info.get("DeviceIdentifier")
+    for container in listing.get("Containers", []):
+        if container.get("ContainerReference") != container_ref:
+            continue
+        volumes = [
+            {
+                "device": volume.get("DeviceIdentifier"),
+                "name": volume.get("Name", ""),
+                "role": (volume.get("Roles") or [""])[0],
+                "used": int(volume.get("CapacityInUse") or 0),
+                "is_data": volume.get("DeviceIdentifier") == data_device,
+            }
+            for volume in container.get("Volumes", [])
+        ]
+        capacity = {
+            "total": int(container.get("CapacityCeiling") or 0),
+            "free": int(container.get("CapacityFree") or 0),
+        }
+        return volumes, capacity
+    return None
+
+
+def disk_accounting(root: Path = DATA_ROOT) -> dict:
+    """디스크가 쓰는 양과 확인한 양을 맞춰 본다. 읽기만 한다."""
+    try:
+        device = os.stat(root).st_dev
+        entries = list(os.scandir(root))
+    except OSError:
+        return {"available": False}
+
+    folders: list[tuple[str, Path]] = []
+    loose_bytes = 0
+    for entry in entries:
+        try:
+            if entry.is_symlink() or entry.name == "Volumes":  # 외장 드라이브가 붙는 곳
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                if entry.stat(follow_symlinks=False).st_dev == device:
+                    folders.append((entry.name, Path(entry.path)))
+            else:
+                stat = entry.stat(follow_symlinks=False)
+                loose_bytes += getattr(stat, "st_blocks", 0) * 512
+        except OSError:
+            continue
+
+    with ThreadPoolExecutor(max_workers=min(8, (os.cpu_count() or 2) + 2)) as executor:
+        results = list(executor.map(lambda item: _measure(item[1], device), folders))
+
+    rows = [
+        {"name": name, "size": m.size, "denied_dirs": m.denied}
+        for (name, _), m in zip(folders, results)
+        if m.size > 0 or m.denied
+    ]
+    rows.sort(key=lambda row: row["size"], reverse=True)
+    measured = sum(row["size"] for row in rows) + loose_bytes
+    denied = sum(row["denied_dirs"] for row in rows)
+
+    apfs = _apfs_volumes(root)
+    data_used = None
+    other_volumes: list[dict] = []
+    capacity = None
+    if apfs:
+        volumes, capacity = apfs
+        for volume in volumes:
+            if volume["is_data"]:
+                data_used = volume["used"]
+            elif volume["used"] > 0:
+                label, what = VOLUME_ROLES.get(volume["role"], (volume["name"], ""))
+                other_volumes.append({"role": volume["role"], "name": label, "what": what, "used": volume["used"]})
+        other_volumes.sort(key=lambda v: v["used"], reverse=True)
+
+    return {
+        "available": True,
+        "data_used": data_used,
+        "measured": measured,
+        # 볼륨 정보를 못 얻으면 차이를 지어내지 않는다.
+        "unexplained": max(0, data_used - measured) if data_used is not None else None,
+        "denied_dirs": denied,
+        "folders": rows,
+        "other_volumes": other_volumes,
+        "capacity": capacity,
+        "snapshot_count": len(_local_snapshots()),
+    }
+

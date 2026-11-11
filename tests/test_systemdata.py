@@ -42,6 +42,8 @@ class AreaDefinitionTests(unittest.TestCase):
         """영역 문구는 영어 화면에서도 보여야 한다. 새 영역을 넣고 번역을 빼먹으면 여기서 잡힌다."""
         i18n = (Path(systemdata.__file__).parent / "web" / "i18n.js").read_text(encoding="utf-8")
         texts = [systemdata.OTHER_HIDDEN_WHAT, systemdata.OTHER_HIDDEN_WHY, systemdata.OTHER_HIDDEN_HINT]
+        for label, what in systemdata.VOLUME_ROLES.values():
+            texts += [label, what]
         for area in systemdata.AREAS:
             texts += [area.name, area.what, area.why] + ([area.hint] if area.hint else [])
         missing = [t for t in texts if f'"{t}"' not in i18n]
@@ -239,6 +241,58 @@ class AnalyzeTests(unittest.TestCase):
                 systemdata.analyze()
 
             self.assertEqual(sorted(p.name for p in area_dir.iterdir()), before)
+
+
+
+class DiskAccountingTests(unittest.TestCase):
+    def _volumes(self, data_used: int) -> tuple[list[dict], dict]:
+        return (
+            [
+                {"device": "d1", "name": "Macintosh HD", "role": "System", "used": 5000, "is_data": False},
+                {"device": "d5", "name": "Data", "role": "Data", "used": data_used, "is_data": True},
+                {"device": "d2", "name": "Preboot", "role": "Preboot", "used": 3000, "is_data": False},
+                {"device": "d4", "name": "Update", "role": "Update", "used": 0, "is_data": False},
+            ],
+            {"total": 10**9, "free": 10**8},
+        )
+
+    def test_gap_is_volume_usage_minus_what_was_measured(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Users").mkdir()
+            (root / "Users" / "f").write_bytes(b"x" * 8192)
+            (root / "Volumes" / "External").mkdir(parents=True)          # 외장 드라이브가 붙는 곳
+            (root / "Volumes" / "External" / "big").write_bytes(b"x" * 400_000)
+            with mock.patch.object(systemdata, "_apfs_volumes", return_value=self._volumes(1_000_000)), \
+                 mock.patch.object(systemdata, "_local_snapshots", return_value=[]):
+                a = systemdata.disk_accounting(root)
+        self.assertTrue(a["available"])
+        self.assertEqual([f["name"] for f in a["folders"]], ["Users"])     # Volumes는 세지 않는다
+        self.assertEqual(a["unexplained"], 1_000_000 - a["measured"])
+        self.assertEqual([v["name"] for v in a["other_volumes"]],
+                         ["macOS 시스템", "부팅 준비 영역 (Preboot)"])      # 0바이트 볼륨은 뺀다
+
+    def test_no_volume_information_means_no_invented_gap(self) -> None:
+        """볼륨 정보를 못 읽으면 차이를 지어내지 않는다."""
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Users").mkdir()
+            (root / "Users" / "f").write_bytes(b"x" * 8192)
+            with mock.patch.object(systemdata, "_apfs_volumes", return_value=None), \
+                 mock.patch.object(systemdata, "_local_snapshots", return_value=[]):
+                a = systemdata.disk_accounting(root)
+        self.assertIsNone(a["data_used"])
+        self.assertIsNone(a["unexplained"])
+        self.assertGreater(a["measured"], 0)
+
+    def test_measure_does_not_cross_into_another_device(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "top.bin").write_bytes(b"x" * 4096)
+            (root / "sub").mkdir()
+            (root / "sub" / "inner.bin").write_bytes(b"y" * 4096)
+            m = systemdata._measure(root, device=-1)   # 어떤 폴더도 같은 장치가 아니다
+        self.assertEqual(m.files, 1)
 
 
 if __name__ == "__main__":

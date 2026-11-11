@@ -1520,6 +1520,64 @@ function renderSystemData(data) {
   }
 }
 
+/* ---------- 디스크 전체 맞춰보기 ---------- */
+async function loadDiskAccounting() {
+  const box = document.getElementById("sd-acc-result");
+  const button = document.getElementById("sd-acc-run");
+  if (!box) return;
+  box.innerHTML = `<div class="q-empty is-loading">디스크 전체를 훑는 중… 30초쯤 걸립니다.</div>`;
+  if (button) button.disabled = true;
+  try {
+    renderDiskAccounting(await api("/api/disk-accounting"));
+  } catch (e) {
+    box.innerHTML = `<div class="q-empty">${escapeHtml(e.message)}</div>`;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function renderDiskAccounting(a) {
+  const box = document.getElementById("sd-acc-result");
+  if (!a || !a.available) {
+    box.innerHTML = `<div class="q-empty">디스크 정보를 읽지 못했습니다.</div>`;
+    return;
+  }
+  const used = a.data_used;
+  const gap = a.unexplained;
+  const known = used != null;
+  const measuredPct = known && used > 0 ? Math.min(100, (a.measured / used) * 100) : 100;
+  const folders = (a.folders || []).map((f) => `
+      <li><span class="sd-acc-name">${escapeHtml(f.name)}${f.denied_dirs ? '<span class="sd-tag sd-tag-partial">일부만 측정</span>' : ""}</span>
+          <span class="sd-acc-num">${fmtBytes(f.size)}</span></li>`).join("");
+  const volumes = (a.other_volumes || []).map((v) => `
+      <li><span class="sd-acc-name">${escapeHtml(v.name)}<small>${escapeHtml(v.what)}</small></span>
+          <span class="sd-acc-num">${fmtBytes(v.used)}</span></li>`).join("");
+  box.innerHTML = `
+    <div class="sd-acc-total">
+      <span>데이터 볼륨이 쓰는 공간</span>
+      <b>${known ? fmtBytes(used) : "알 수 없음"}</b>
+    </div>
+    <div class="sd-acc-bar" aria-hidden="true">
+      <i class="is-measured" style="width:${measuredPct}%"></i><i class="is-gap" style="width:${100 - measuredPct}%"></i>
+    </div>
+    <ul class="sd-acc-legend">
+      <li><span class="dot is-measured"></span><span>확인한 공간</span><b>${fmtBytes(a.measured)}</b></li>
+      <li><span class="dot is-gap"></span><span>확인 못 한 공간</span><b>${known ? fmtBytes(gap) : "알 수 없음"}</b></li>
+    </ul>
+    ${known ? "" : `<p class="sd-note">볼륨 정보를 읽지 못해 차이를 계산하지 않았습니다.</p>`}
+    ${gap > 0 ? `<p class="sd-partial-note">확인 못 한 공간에는 보통 이런 것이 있습니다. 권한이 없어 열지 못한 폴더, macOS가 필요할 때 알아서 비우는 '삭제 가능' 공간, 파일 시스템 관리 정보입니다. 전체 디스크 접근 권한을 켜면 이 숫자가 줄어듭니다.</p>` : ""}
+    <ul class="sd-acc-facts">
+      <li><span>권한이 없어 열지 못한 폴더 수</span><b>${(a.denied_dirs || 0).toLocaleString()}</b></li>
+      <li><span>로컬 스냅샷 수</span><b>${(a.snapshot_count || 0).toLocaleString()}</b></li>
+    </ul>
+    <h3 class="sd-acc-sub">데이터 볼륨의 맨 위 폴더</h3>
+    <ul class="sd-acc-list">${folders}</ul>
+    ${volumes ? `
+    <h3 class="sd-acc-sub">같은 디스크의 다른 볼륨</h3>
+    <p class="sd-note">이 볼륨들은 폴더로 보이지 않아서 위 목록과 맞춰보기에 잡히지 않습니다. 전부 macOS가 관리합니다.</p>
+    <ul class="sd-acc-list">${volumes}</ul>` : ""}`;
+}
+
 /* ---------- Large Files ---------- */
 let lastLargeFiles = null;
 
@@ -2129,6 +2187,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("scan-btn-2").addEventListener("click", runScan);
   document.getElementById("fav-add")?.addEventListener("click", addCurrentFavorite);
   document.getElementById("sd-scan")?.addEventListener("click", loadSystemData);
+  document.getElementById("sd-acc-run")?.addEventListener("click", loadDiskAccounting);
   loadFavorites();
   document.getElementById("cancel-scan").addEventListener("click", cancelScan);
   document.getElementById("result-search").addEventListener("input", renderFilteredResults);

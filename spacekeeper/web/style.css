@@ -1552,3 +1552,31 @@ html[data-shell="desktop"] .sidebar { padding-top: 52px; }
 }
 .sd-body .sd-partial-note { margin: 14px 0 0; }
 
+/* 디스크 전체 맞춰보기 — 확인한 공간과 확인 못 한 공간을 나란히 */
+.sd-accounting { margin-top: 22px; padding: 20px 22px; }
+.sd-acc-head { display: flex; gap: 18px; align-items: flex-start; justify-content: space-between; }
+.sd-acc-title { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+.sd-acc-desc { margin: 6px 0 0; font-size: 12.5px; line-height: 1.6; color: var(--muted); max-width: 560px; }
+.sd-acc-result:empty { display: none; }
+.sd-acc-result { margin-top: 18px; }
+.sd-acc-total { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); }
+.sd-acc-total b { font-size: 22px; color: var(--text); font-weight: 680; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.sd-acc-bar { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: var(--track); margin-top: 10px; }
+.sd-acc-bar i { display: block; height: 100%; }
+.sd-acc-bar .is-measured, .sd-acc-legend .dot.is-measured { background: var(--accent); }
+.sd-acc-bar .is-gap, .sd-acc-legend .dot.is-gap {
+  background: repeating-linear-gradient(135deg, var(--medium) 0 4px, transparent 4px 8px);
+}
+.sd-acc-legend, .sd-acc-facts, .sd-acc-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.sd-acc-legend li, .sd-acc-facts li { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 3px 0; }
+.sd-acc-legend li b, .sd-acc-facts li b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.sd-acc-legend .dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.sd-acc-facts { border-top: 1px solid var(--line); padding-top: 8px; color: var(--muted); }
+.sd-acc-sub { font-size: 12.5px; font-weight: 650; margin: 18px 0 0; color: var(--text); }
+.sd-acc-list li { display: flex; gap: 12px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.sd-acc-list li:last-child { border-bottom: 0; }
+.sd-acc-name { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.sd-acc-name small { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.sd-acc-name .sd-tag { align-self: flex-start; }
+.sd-acc-num { font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+

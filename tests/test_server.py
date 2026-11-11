@@ -210,6 +210,15 @@ class ServerSafetyTests(unittest.TestCase):
             csp.replace(" ipc: http://ipc.localhost", ""), server._CSP
         )
 
+    def test_disk_accounting_requires_token_and_returns_the_reconciliation(self) -> None:
+        fake = {"available": True, "data_used": 100, "measured": 70, "unexplained": 30}
+        with mock.patch.object(server.systemdata, "disk_accounting", return_value=fake):
+            status, payload = self._get("/api/disk-accounting")
+            denied_status, _ = self._get("/api/disk-accounting", {"X-Spacekeeper-Token": "wrong"})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, fake)
+        self.assertEqual(denied_status, 403)
+
     def test_api_rejects_missing_or_wrong_token(self) -> None:
         for headers in ({}, {"X-Spacekeeper-Token": "wrong-token"}):
             request = Request(

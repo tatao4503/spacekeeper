@@ -711,6 +711,14 @@ class _Handler(BaseHTTPRequestHandler):
                     {"error": f"시스템 데이터를 분석하지 못했습니다: {exc}"},
                     status=500,
                 )
+        elif route.path == "/api/disk-accounting":
+            try:
+                self._send_json(systemdata.disk_accounting())
+            except OSError as exc:
+                self._send_json(
+                    {"error": f"디스크 전체를 맞춰 보지 못했습니다: {exc}"},
+                    status=500,
+                )
         elif route.path == "/api/history":
             self._send_json({"records": history.load_history()})
         elif route.path == "/api/favorites":
