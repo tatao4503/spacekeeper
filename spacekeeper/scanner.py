@@ -6,7 +6,7 @@ import shutil
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 from threading import Event
@@ -282,6 +282,39 @@ class _CacheAggregate:
     file_count: int = 0
 
 
+_NOSYNC = ".nosync"
+NOSYNC_CAUTION = (
+    " iCloud 동기화에서 빼려고 이름 끝에 .nosync를 붙인 폴더입니다. 프로젝트에 있는 같은 이름의"
+    " 연결(링크)이 끊어지므로, 다시 설치할 때 .nosync 이름과 링크를 다시 맞춰야 iCloud로 올라가지 않습니다."
+)
+
+
+def _match_names(parts: tuple[str, ...]) -> tuple[str, ...]:
+    """규칙을 맞출 때 쓰는 이름. iCloud 제외용 '.nosync' 접미사를 뗀다.
+
+    iCloud로 동기화되는 폴더에서는 의존성 폴더를 `node_modules.nosync`처럼 두고
+    `node_modules`를 거기로 가는 링크로 만드는 경우가 많다. 이름을 글자 그대로
+    비교하면 이런 폴더(실제 용량이 있는 쪽)를 하나도 못 알아본다.
+    """
+    return tuple(
+        part[: -len(_NOSYNC)] if part.endswith(_NOSYNC) and len(part) > len(_NOSYNC) else part
+        for part in parts
+    )
+
+
+@lru_cache(maxsize=None)
+def _with_nosync_caution(rule: "CacheRule") -> "CacheRule":
+    return replace(rule, caution=rule.caution + NOSYNC_CAUTION)
+
+
+def _bucket(parts: tuple[str, ...], end: int, rule: "CacheRule") -> tuple[Path, "CacheRule"]:
+    """찾은 버킷 경로는 원래 이름(.nosync 포함) 그대로 쓰고, .nosync면 주의를 덧붙인다."""
+    bucket_parts = parts[:end]
+    if any(part.endswith(_NOSYNC) for part in bucket_parts):
+        rule = _with_nosync_caution(rule)
+    return Path(*bucket_parts), rule
+
+
 def _find_sequence(parts: tuple[str, ...], needle: tuple[str, ...]) -> int | None:
     width = len(needle)
     for index in range(len(parts) - width + 1):
@@ -297,14 +330,15 @@ def _is_rust_target(path: Path) -> bool:
 
 def _cache_bucket(path: Path) -> tuple[Path, CacheRule] | None:
     parts = path.parts
-    for index, part in enumerate(parts[:-1]):
-        if part != "target":
+    names = _match_names(parts)
+    for index, name in enumerate(names[:-1]):
+        if name != "target":
             continue
         target = Path(*parts[: index + 1])
         if _is_rust_target(target):
-            return target, RUST_TARGET_RULE
+            return _bucket(parts, index + 1, RUST_TARGET_RULE)
     for rule in CACHE_RULES:
-        index = _find_sequence(parts, rule.parts)
+        index = _find_sequence(names, rule.parts)
         if index is None:
             continue
         end = index + len(rule.parts)
@@ -313,7 +347,7 @@ def _cache_bucket(path: Path) -> tuple[Path, CacheRule] | None:
             continue
         if rule.group_child and end < len(parts) - 1:
             end += 1
-        return Path(*parts[:end]), rule
+        return _bucket(parts, end, rule)
     return None
 
 
@@ -325,11 +359,12 @@ def _dir_cache_bucket(directory: Path) -> tuple[Path, CacheRule] | None:
     대해 기존 ``_cache_bucket(file)`` 과 동일한 결과를 낸다.
     """
     parts = directory.parts
-    for index, part in enumerate(parts):
-        if part == "target" and _is_rust_target(Path(*parts[: index + 1])):
-            return Path(*parts[: index + 1]), RUST_TARGET_RULE
+    names = _match_names(parts)
+    for index, name in enumerate(names):
+        if name == "target" and _is_rust_target(Path(*parts[: index + 1])):
+            return _bucket(parts, index + 1, RUST_TARGET_RULE)
     for rule in CACHE_RULES:
-        index = _find_sequence(parts, rule.parts)
+        index = _find_sequence(names, rule.parts)
         if index is None:
             continue
         end = index + len(rule.parts)
@@ -337,7 +372,7 @@ def _dir_cache_bucket(directory: Path) -> tuple[Path, CacheRule] | None:
             continue
         if rule.group_child and end < len(parts):
             end += 1
-        return Path(*parts[:end]), rule
+        return _bucket(parts, end, rule)
     return None
 
 

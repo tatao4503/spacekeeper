@@ -76,6 +76,55 @@ class ScannerTests(unittest.TestCase):
             self.assertIn("large_file", categories)
             self.assertIn("old_download", categories)
 
+    def test_nosync_dependency_folder_is_one_candidate_with_its_real_name(self) -> None:
+        """iCloud에서 빼려고 `node_modules.nosync`로 두고 `node_modules`를 링크로 쓰는 경우.
+
+        예전에는 이름을 글자 그대로 비교해서 폴더 전체를 못 알아보고, 그 안쪽의
+        `vite/node_modules` 같은 조각만 후보로 냈다. 조각을 격리하면 설치가 반쯤 깨진다.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project = root / "app"
+            real = project / "node_modules.nosync"
+            (real / "vite" / "node_modules" / "esbuild").mkdir(parents=True)
+            (real / "react" / "index.js").parent.mkdir(parents=True)
+            (real / "react" / "index.js").write_bytes(b"r" * 8192)
+            (real / "vite" / "node_modules" / "esbuild" / "bin").write_bytes(b"e" * 8192)
+            (project / "node_modules").symlink_to(real)  # 링크는 따라가지 않는다
+
+            result = scan(ScanOptions(roots=(root,), large_bytes=10**9))
+
+            deps = [c for c in result.cache_candidates if c.category == "project_dependency"]
+            self.assertEqual([Path(c.path) for c in deps], [real.resolve()])  # 조각이 아니라 통째로, 진짜 이름으로
+            self.assertIn(".nosync", deps[0].caution)       # 링크·iCloud 주의를 알려준다
+
+    def test_nosync_rust_target_is_recognised(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            crate = root / "src-tauri"
+            crate.mkdir()
+            (crate / "Cargo.toml").write_text("[package]\nname = \"x\"\n")
+            build = crate / "target.nosync" / "debug" / "deps"
+            build.mkdir(parents=True)
+            (build / "libx.rlib").write_bytes(b"x" * 8192)
+
+            result = scan(ScanOptions(roots=(root,), large_bytes=10**9))
+
+            paths = {Path(c.path) for c in result.cache_candidates}
+            self.assertIn((crate / "target.nosync").resolve(), paths)
+
+    def test_plain_folder_named_nosync_is_not_mistaken_for_a_cache(self) -> None:
+        """'.nosync'라는 이름만으로는 캐시가 아니다. 떼고 난 이름이 규칙에 맞아야 한다."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            mine = root / "photos.nosync" / "trip.jpg"
+            mine.parent.mkdir(parents=True)
+            mine.write_bytes(b"p" * 8192)
+
+            result = scan(ScanOptions(roots=(root,), large_bytes=10**9))
+
+            self.assertEqual(result.cache_candidates, [])
+
     def test_classifies_developer_caches(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
