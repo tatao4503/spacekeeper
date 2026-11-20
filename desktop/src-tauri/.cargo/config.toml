@@ -1,0 +1,10 @@
+# macOS 12 이상을 목표로 빌드하면(tauri.conf.json minimumSystemVersion 12.0 →
+# MACOSX_DEPLOYMENT_TARGET=12.0) 링커가 chained fixups 형식을 쓴다.
+# Command Line Tools ld-27106(2026-10-30 설치, macOS 27.2)으로 이렇게 만든
+# proc-macro dylib은 dyld가 "mis-aligned LINKEDIT string pool"로 열지 못해
+# serde_derive 같은 매크로가 "can't find crate"로 실패한다(2026-11-20 재현:
+# 11.0·미지정은 성공, 12.0~26.0은 실패, 아래 옵션을 주면 12.0도 성공).
+# 옛 fixup 형식은 macOS 12에서도 그대로 동작하므로 최소 지원 버전은 바뀌지 않는다.
+# 링커가 고쳐지면 지워도 된다.
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-no_fixup_chains"]

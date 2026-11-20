@@ -73,6 +73,14 @@ class DesktopBundleContractTests(unittest.TestCase):
         )
         self.assertIn("Apple Silicon", readme)
 
+    def test_macos_12_target_links_without_chained_fixups(self) -> None:
+        # 최소 macOS 12로 빌드하면 현재 링커가 만든 proc-macro를 dyld가 못 연다.
+        # 이 설정이 빠지면 serde_derive 등이 "can't find crate"로 빌드가 깨진다.
+        self.assertEqual(TAURI_CONFIG["bundle"]["macOS"]["minimumSystemVersion"], "12.0")
+        cargo_config = (TAURI_DIR / ".cargo" / "config.toml").read_text(encoding="utf-8")
+        self.assertIn("[target.aarch64-apple-darwin]", cargo_config)
+        self.assertIn('"link-arg=-Wl,-no_fixup_chains"', cargo_config)
+
     def test_sidecar_is_self_contained_and_includes_web_assets(self) -> None:
         self.assertIn("--onedir", BUILD_SIDECAR)
         self.assertIn("spacekeeper/web:spacekeeper/web", BUILD_SIDECAR)
