@@ -8,6 +8,11 @@ picked into a quarantine folder, and lets you put it all back.
 
 [한국어 문서](README.ko.md) · [사용설명서 (USER_GUIDE)](USER_GUIDE.html)
 
+![Overview after scanning a home folder: 5.5 GB of candidates, split by risk](docs/screenshots/en/dashboard.png)
+
+*Screenshots use a demo home folder (`/Users/Shared/demo`), not a real one.
+The System Data numbers are from a real Mac.*
+
 ---
 
 ## Why another cleaner
@@ -16,6 +21,8 @@ picked into a quarantine folder, and lets you put it all back.
 and records where they came from. Restore is one click. Emptying goes to the
 macOS Trash, so even that step is reversible. The app explains this on first
 launch, before it scans anything.
+
+<img src="docs/screenshots/en/quarantine.png" alt="Quarantine: each item shows where it came from, with Restore and Show in Finder" width="720">
 
 **iCloud-synced folders are handled carefully.** If Desktop & Documents sync is
 on, the confirmation says how many items live there — quarantining takes them
@@ -66,6 +73,8 @@ macOS System Settings lumps everything it can't classify into one opaque
 figure. Watching it climb past 100 GB with no way to see inside is the reason
 this project exists — and most of that blob lives in system locations the
 cleaning screens never measure.
+
+![System Data broken into folders, with partly-measured areas marked and a Full Disk Access hint](docs/screenshots/en/system-data.png)
 
 This screen breaks it apart: Xcode simulator runtimes, `/Library/Application
 Support`, `/private/var` swap and scratch, app containers, device symbols, iOS
