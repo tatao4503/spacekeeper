@@ -17,6 +17,13 @@ and records where they came from. Restore is one click. Emptying goes to the
 macOS Trash, so even that step is reversible. The app explains this on first
 launch, before it scans anything.
 
+**iCloud-synced folders are handled carefully.** If Desktop & Documents sync is
+on, the confirmation says how many items live there — quarantining takes them
+out of iCloud Drive until you restore them. When iCloud holds a move (it can,
+on a full iCloud), Spacekeeper gives up after 60 seconds and leaves the item
+where it was instead of hanging. Desktop and Documents themselves are never
+moved.
+
 **Every item explains itself.** Each candidate carries a reason ("Cargo can
 rebuild this"), a caution, and a risk level. No opaque "Junk: 12.4 GB" buckets.
 

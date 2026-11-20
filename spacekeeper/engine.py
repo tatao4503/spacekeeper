@@ -20,6 +20,9 @@ from pathlib import Path
 from typing import Any
 
 import fcntl
+import subprocess
+
+from . import icloud
 
 
 QUARANTINE_ROOT = Path.home() / ".spacekeeper" / "quarantine"
@@ -55,6 +58,31 @@ class EngineRecoveryError(Exception):
 
 class StaleSelectionError(Exception):
     """사용자가 본 격리 항목과 현재 항목이 다를 때 발생."""
+
+
+class ICloudBusyError(OSError):
+    """iCloud가 동기화 폴더 안팎의 이동을 붙잡아 기다리다 그만뒀을 때 발생.
+
+    원본이 제자리에 그대로 있을 때만 쓴다.
+    """
+
+
+# iCloud 동기화 위치를 드나드는 이동을 기다리는 최대 시간(초).
+# 실측: 작은 새 폴더 0.02초, .nosync 폴더 0.5초, iCloud가 가득 찼을 때 2.2GB 폴더는
+# 20분 넘게 멈춤. 정상적인 이동은 이름만 바꾸는 일이라 이 시간 안에 끝난다.
+ICLOUD_MOVE_TIMEOUT = 60.0
+# 같은 볼륨 안의 mv는 rename(2) 한 번이다. -n: 도착지가 있으면 덮어쓰지 않는다.
+_MV_COMMAND = ("/bin/mv", "-n", "--")
+
+ICLOUD_RESTORE_BUSY_MESSAGE = (
+    "iCloud가 이동을 붙잡고 있어 복원하지 않았습니다. 격리함에 그대로 있으니 "
+    "잠시 뒤 다시 시도하세요."
+)
+
+ICLOUD_BUSY_MESSAGE = (
+    "iCloud가 이동을 붙잡고 있어 옮기지 않았습니다. 원래 자리에 그대로 있습니다. "
+    "Finder에서 직접 휴지통으로 옮기세요."
+)
 
 
 @dataclass(frozen=True)
@@ -104,6 +132,10 @@ def _assert_safe_to_move(path: Path) -> None:
         raise UnsafePathError(f"최상위 폴더 자체는 이동할 수 없습니다: {resolved}")
     if not any(resolved.is_relative_to(root) for root in allowed_roots):
         raise UnsafePathError(f"허용되지 않은 위치입니다: {resolved}")
+    if icloud.is_domain_root(path):
+        raise UnsafePathError(
+            f"iCloud가 동기화하는 폴더 자체는 이동할 수 없습니다: {resolved}"
+        )
     if resolved.is_relative_to(QUARANTINE_ROOT.resolve()):
         raise UnsafePathError("격리함 안의 항목은 다시 격리할 수 없습니다.")
     for protected in _PROTECTED_ROOTS:
@@ -308,6 +340,65 @@ def _recover_incomplete_operation() -> None:
     )
 
 
+def _bounded_move(source: Path, destination: Path) -> None:
+    """iCloud 동기화 위치를 드나드는 이동. 붙잡히면 끝까지 기다리지 않는다.
+
+    이 이동은 같은 볼륨 안에서 이름만 바꾸는 일인데, iCloud가 바쁘면 커널 호출이
+    돌아오지 않는다. 그래서 별도 프로세스(`/bin/mv`)로 옮기고 제한 시간이 지나면
+    끝낸다. 실측에서 멈춘 mv는 끝낼 수 있었고 원본은 그대로였다.
+    """
+    try:
+        proc = subprocess.Popen(
+            [*_MV_COMMAND, str(source), str(destination)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except OSError:
+        shutil.move(str(source), str(destination))
+        return
+    try:
+        _out, err = proc.communicate(timeout=ICLOUD_MOVE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        if os.path.lexists(source) and not os.path.lexists(destination):
+            raise ICloudBusyError(ICLOUD_BUSY_MESSAGE)
+        raise EngineRecoveryError(
+            f"iCloud가 이동을 붙잡아 중단했는데 파일 상태가 불명확합니다: "
+            f"{source} -> {destination}"
+        )
+    if (
+        proc.returncode != 0
+        or os.path.lexists(source)
+        or not os.path.lexists(destination)
+    ):
+        message = (err or b"").decode("utf-8", "replace").strip()
+        raise OSError(message or f"mv가 실패했습니다 (종료 코드 {proc.returncode})")
+
+
+def _move(source: Path, destination: Path) -> None:
+    """출발지나 도착지가 iCloud 동기화 위치면 시간 제한을 둔다."""
+    if icloud.SYNCED in (icloud.sync_state(source), icloud.sync_state(destination)):
+        _bounded_move(source, destination)
+    else:
+        shutil.move(str(source), str(destination))
+
+
+def _strip_icloud_markers(path: Path) -> None:
+    """격리함·휴지통처럼 iCloud 밖에 둔 항목의 File Provider 표시를 뗀다.
+
+    표시가 남으면 Finder가 휴지통을 비울 때 그 폴더를 지우지 못하고 남긴다(실측).
+    떼지 못해도 이동 자체는 이미 끝났으므로 실패를 알리지 않는다.
+    """
+    try:
+        icloud.strip_markers(path)
+    except OSError:
+        pass
+
+
 def _commit_move(
     operation: str,
     source: Path,
@@ -323,7 +414,15 @@ def _commit_move(
         ) from exc
 
     try:
-        shutil.move(str(source), str(destination))
+        _move(source, destination)
+    except ICloudBusyError:
+        try:
+            _clear_journal()
+        except OSError as cleanup_exc:
+            raise EngineRecoveryError(
+                f"이동 중단 후 journal을 정리하지 못했습니다: {cleanup_exc}"
+            ) from cleanup_exc
+        raise
     except OSError as exc:
         # shutil.move는 디렉터리를 복사한 뒤 원본을 지우는데, 원본이
         # macOS 보호 폴더(예: ~/Library/Caches)면 내용은 모두 옮겨졌는데도
@@ -415,11 +514,16 @@ def quarantine(
         }
         moved: list[QuarantineRecord] = []
         skipped: list[dict[str, str]] = []
+        icloud_busy = False
 
         for action_id, raw_path, kind in items:
             path = Path(raw_path)
             if action_id in active:
                 skipped.append({"path": raw_path, "reason": "이미 격리된 항목입니다."})
+                continue
+            # 한 번 붙잡혔으면 iCloud가 바쁜 것이니 남은 동기화 항목은 기다리지 않는다.
+            if icloud_busy and icloud.sync_state(path) == icloud.SYNCED:
+                skipped.append({"path": raw_path, "reason": ICLOUD_BUSY_MESSAGE})
                 continue
             try:
                 _assert_safe_to_move(path)
@@ -443,12 +547,19 @@ def quarantine(
                 quarantined_at=stamp,
                 instance_id=uuid.uuid4().hex,
             )
+            came_from_icloud = icloud.sync_state(path) is not None
             try:
                 _commit_move("quarantine", path, destination, record, records)
+            except ICloudBusyError as exc:
+                icloud_busy = True
+                skipped.append({"path": raw_path, "reason": str(exc)})
+                continue
             except OSError as exc:
                 skipped.append({"path": raw_path, "reason": f"이동 실패: {exc}"})
                 continue
 
+            if came_from_icloud:
+                _strip_icloud_markers(destination)
             moved.append(record)
             active.add(action_id)
 
@@ -493,7 +604,10 @@ def restore(
         original.parent.mkdir(parents=True, exist_ok=True)
 
         updated = QuarantineRecord(**{**asdict(record), "restored_at": stamp})
-        _commit_move("restore", stored, original, updated, records)
+        try:
+            _commit_move("restore", stored, original, updated, records)
+        except ICloudBusyError as exc:
+            raise ICloudBusyError(ICLOUD_RESTORE_BUSY_MESSAGE) from exc
         return updated
 
 
@@ -540,6 +654,8 @@ def empty_quarantine(
                 target = TRASH_ROOT / f"{stored.name}.{suffix}"
                 suffix += 1
             updated = QuarantineRecord(**{**asdict(record), "emptied_at": stamp})
+            # 이전 버전이 격리한 항목에는 표시가 남아 있을 수 있다.
+            _strip_icloud_markers(stored)
             _commit_move("empty", stored, target, updated, records)
             emptied.append(updated)
         return emptied

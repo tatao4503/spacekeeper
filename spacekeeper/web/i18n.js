@@ -841,6 +841,12 @@ const EN = {
   "휴지통으로 보낼까요?": "Move to Trash?",
   "휴지통으로 보내기": "Move to Trash",
 
+  // iCloud 동기화 위치
+  "iCloud가 이동을 붙잡고 있어 옮기지 않았습니다. 원래 자리에 그대로 있습니다. Finder에서 직접 휴지통으로 옮기세요.":
+    "iCloud is holding the move, so it wasn't moved. It's still where it was. Move it to the Trash in Finder instead.",
+  "iCloud가 이동을 붙잡고 있어 복원하지 않았습니다. 격리함에 그대로 있으니 잠시 뒤 다시 시도하세요.":
+    "iCloud is holding the move, so it wasn't restored. It's still in Quarantine; try again in a moment.",
+
   // 기록 (추이 + 활동 로그)
   "기록": "History",
   "스캔과 정리 활동을 이 Mac 안에만 남깁니다. 시간에 따라 무엇이 얼마나 쌓이고 정리됐는지 보세요.":

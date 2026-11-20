@@ -67,7 +67,7 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-function toast(msg, kind) {
+function toast(msg, kind, ms = 3600) {
   const el = document.getElementById("toast");
   el.textContent = msg;
   el.className = "toast" + (kind ? " " + kind : "");
@@ -75,7 +75,7 @@ function toast(msg, kind) {
   el.setAttribute("aria-live", kind === "err" ? "assertive" : "polite");
   el.hidden = false;
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => (el.hidden = true), 3600);
+  toast._t = setTimeout(() => (el.hidden = true), ms);
 }
 
 function syncGroupCheckbox(root, allSelector, itemSelector = "input[data-id]") {
@@ -250,12 +250,37 @@ function confirmDialog({ title, body, count, confirmLabel, danger }) {
   });
 }
 
+/** 확인 창에 덧붙일 iCloud 안내. 알아보지 못하면 안내 없이 진행한다. */
+async function icloudNotice(ids) {
+  try {
+    const out = await api("/api/reclaim/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action_ids: ids }),
+    });
+    const n = out.icloud_synced || 0;
+    if (!n) return "";
+    return isEn()
+      ? ` ${n} of them are in folders iCloud syncs (such as Desktop or Documents). Quarantining takes them out of iCloud Drive, so your other devices won't see them until you restore. If iCloud is busy, they're left where they are.`
+      : ` 그중 ${n}개는 iCloud가 동기화하는 폴더(바탕화면·문서 등)에 있어요. 격리하면 iCloud Drive에서 빠져 다른 기기에서는 보이지 않고, 복원하면 다시 올라갑니다. iCloud가 바쁘면 옮기지 않고 그대로 둡니다.`;
+  } catch {
+    return "";
+  }
+}
+
+/** 건너뛴 이유를 겹치지 않게 모은다. */
+function skippedReasons(out) {
+  const reasons = [...new Set((out.skipped || []).map((s) => TR(s.reason)).filter(Boolean))];
+  return reasons.slice(0, 2).join(" ");
+}
+
 async function reclaimIds(ids, btn, label, selectedBytes = 0) {
   if (!ids.length) return null;
+  const base = TR("원래 위치에서 Spacekeeper 격리함으로 옮겨집니다. 저장 공간은 아직 늘지 않으며 언제든 복원할 수 있어요.");
   if (!(await confirmDialog({
     title: "선택 항목을 격리할까요?",
     count: countLine(ids.length, selectedBytes),
-    body: "원래 위치에서 Spacekeeper 격리함으로 옮겨집니다. 저장 공간은 아직 늘지 않으며 언제든 복원할 수 있어요.",
+    body: base + (await icloudNotice(ids)),
     confirmLabel: "격리하기",
   }))) return null;
   if (btn) { btn.disabled = true; btn.textContent = "안전하게 격리하는 중…"; }
@@ -265,10 +290,17 @@ async function reclaimIds(ids, btn, label, selectedBytes = 0) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action_ids: ids, confirmed: true }),
     });
-    let msg = `${out.moved_count}개 항목을 격리했습니다 · ` +
-      `${fmtBytes(out.quarantined_bytes)} 보관 중`;
-    if (out.skipped_count) msg += ` · ${out.skipped_count}개는 제외했습니다`;
-    toast(msg, "ok");
+    let msg = isEn()
+      ? `Quarantined ${out.moved_count} items · ${fmtBytes(out.quarantined_bytes)} held`
+      : `${out.moved_count}개 항목을 격리했습니다 · ${fmtBytes(out.quarantined_bytes)} 보관 중`;
+    if (out.skipped_count) {
+      msg += isEn()
+        ? ` · skipped ${out.skipped_count}`
+        : ` · ${out.skipped_count}개는 제외했습니다`;
+      const why = skippedReasons(out);
+      if (why) msg += ` — ${why}`;
+    }
+    toast(msg, out.moved_count ? "ok" : "err", out.skipped_count ? 9000 : 3600);
     return out;
   } catch (e) {
     toast(e.message, "err");

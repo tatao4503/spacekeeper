@@ -290,6 +290,29 @@ class ServerSafetyTests(unittest.TestCase):
         self.assertEqual(payload["disk_space_freed_bytes"], 0)
         self.assertFalse(self.target.exists())
 
+    def test_reclaim_check_counts_icloud_items_without_moving(self) -> None:
+        with mock.patch.object(
+            server.icloud, "sync_state", return_value=server.icloud.SYNCED
+        ):
+            status, payload = self._post(
+                {"action_ids": ["C-test", "unknown"]}, path="/api/reclaim/check"
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"count": 1, "icloud_synced": 1})
+        self.assertTrue(self.target.exists())
+
+    def test_reclaim_check_ignores_excluded_nosync_items(self) -> None:
+        with mock.patch.object(
+            server.icloud, "sync_state", return_value=server.icloud.EXCLUDED
+        ):
+            status, payload = self._post(
+                {"action_ids": ["C-test"]}, path="/api/reclaim/check"
+            )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["icloud_synced"], 0)
+
     def test_reveal_opens_only_registered_existing_path_in_finder(self) -> None:
         with (
             mock.patch.object(server.sys, "platform", "darwin"),

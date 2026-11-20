@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from . import diagnostics, engine, favorites, history, notifier, systemdata
+from . import diagnostics, engine, favorites, history, icloud, notifier, systemdata
 from .apps import scan_apps
 from .models import ScanOptions
 from .planning import _action_id, build_cleanup_plan
@@ -933,6 +933,15 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return
             self._send_json({"revealed": True, "action_id": action_id})
+        elif route.path == "/api/reclaim/check":
+            # 격리 확인 창에 미리 알릴 것: iCloud 동기화 위치에 있는 항목 수.
+            action_ids = [str(a) for a in body.get("action_ids", [])]
+            items = self.state.resolve(action_ids)
+            synced = sum(
+                1 for _aid, path, _kind in items
+                if icloud.sync_state(path) == icloud.SYNCED
+            )
+            self._send_json({"count": len(items), "icloud_synced": synced})
         elif route.path == "/api/reclaim":
             if body.get("confirmed") is not True:
                 self._send_json(
@@ -987,6 +996,9 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             except (KeyError, FileNotFoundError, FileExistsError) as exc:
                 self._send_json({"error": str(exc)}, status=400)
+                return
+            except engine.ICloudBusyError as exc:
+                self._send_json({"error": str(exc)}, status=503)
                 return
             except OSError as exc:
                 self._send_json({"error": f"복원 중 오류가 발생했습니다: {exc}"}, status=500)
