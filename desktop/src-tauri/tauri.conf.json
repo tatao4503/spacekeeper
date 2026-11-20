@@ -1,6 +1,6 @@
 {
   "productName": "Spacekeeper",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "identifier": "com.spacekeeper.desktop",
   "build": {
     "beforeDevCommand": "./build-sidecar.sh",

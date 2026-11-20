@@ -4,4 +4,4 @@ from .models import ScanOptions, ScanResult
 from .scanner import scan
 
 __all__ = ["ScanOptions", "ScanResult", "scan"]
-__version__ = "0.3.1"
+__version__ = "0.3.2"
