@@ -68,3 +68,51 @@ class WebContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class I18nNoRewriteLoopTests(unittest.TestCase):
+    """영어 모드에서 번역이 원문과 같으면 아무것도 쓰지 않아야 한다.
+
+    쓰면 MutationObserver가 다시 불려 페이지가 멈춘다(2026-11-20, 시스템 데이터의
+    "Command Line Tools").
+    """
+
+    def test_identical_translation_does_not_rewrite_text(self) -> None:
+        import shutil
+        import subprocess
+
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node가 없어 i18n.js를 실행할 수 없습니다.")
+        script = r"""
+const fs = require("fs");
+const src = fs.readFileSync(process.argv[1], "utf8");
+const make = new Function("window","localStorage","navigator","document","Node","NodeFilter","MutationObserver",
+  src + "; return { EN, translateText, translateNode };");
+const api = make({}, { getItem: () => "en" }, { language: "en" },
+  { addEventListener() {} }, { TEXT_NODE: 3, ELEMENT_NODE: 1 }, {}, function () {});
+const same = Object.entries(api.EN).filter(([k, v]) => k === v).map(([k]) => k);
+let writes = 0;
+for (const key of same.concat(["Command Line Tools"])) {
+  let value = key;
+  const text = { nodeType: 3, get nodeValue() { return value; }, set nodeValue(v) { writes++; value = v; } };
+  api.translateText(text);
+}
+const translated = { nodeType: 3, nodeValue: "취소" };
+api.translateText(translated);
+console.log(JSON.stringify({ writes, translated: translated.nodeValue }));
+"""
+        out = subprocess.run(
+            [node, "-e", script, str(ROOT / "spacekeeper" / "web" / "i18n.js")],
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+        result = __import__("json").loads(out.stdout)
+        self.assertEqual(result["writes"], 0)
+        self.assertEqual(result["translated"], "Cancel")
+
+    def test_attribute_and_text_writes_go_through_change_checks(self) -> None:
+        i18n = (ROOT / "spacekeeper" / "web" / "i18n.js").read_text(encoding="utf-8")
+        self.assertNotIn("textNode.nodeValue = ", i18n.replace(
+            "if (value !== textNode.nodeValue) textNode.nodeValue = value;", ""))
+        self.assertNotIn("el.setAttribute(attr, EN[key])", i18n)
+        self.assertNotIn("el.setAttribute(attr, patterned)", i18n)

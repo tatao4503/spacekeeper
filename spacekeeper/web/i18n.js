@@ -957,15 +957,26 @@ function t(korean) {
   return currentLang() === "en" ? EN[korean] || korean : korean;
 }
 
+// 값이 그대로여도 nodeValue/setAttribute에 쓰면 MutationObserver가 다시 불린다.
+// "Command Line Tools"처럼 번역이 원문과 같은 항목에서 무한 반복으로 페이지가
+// 멈췄다(2026-11-20, 영어 모드 시스템 데이터). 바뀔 때만 쓴다.
+function setText(textNode, value) {
+  if (value !== textNode.nodeValue) textNode.nodeValue = value;
+}
+
+function setAttr(el, attr, value) {
+  if (value !== el.getAttribute(attr)) el.setAttribute(attr, value);
+}
+
 function translateText(textNode) {
   const key = textNode.nodeValue.trim();
   if (!key) return;
   if (EN[key]) {
-    textNode.nodeValue = textNode.nodeValue.replace(key, EN[key]);
+    setText(textNode, textNode.nodeValue.replace(key, EN[key]));
     return;
   }
   const patterned = applyPatterns(textNode.nodeValue);
-  if (patterned !== null) textNode.nodeValue = patterned;
+  if (patterned !== null) setText(textNode, patterned);
 }
 
 function translateNode(node) {
@@ -989,10 +1000,10 @@ function translateNode(node) {
       if (!value) continue;
       const key = value.trim();
       if (EN[key]) {
-        el.setAttribute(attr, EN[key]);
+        setAttr(el, attr, EN[key]);
       } else {
         const patterned = applyPatterns(value);
-        if (patterned !== null) el.setAttribute(attr, patterned);
+        if (patterned !== null) setAttr(el, attr, patterned);
       }
     }
   }
